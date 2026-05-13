@@ -229,7 +229,7 @@ class VirtualKernel:
                 continue
             marker = "*" if host == self.world.current_host else " "
             lines.append(
-                f"{marker} {host}  region={info['region']} faction={info['faction']} transitions={','.join(info['transitions'])}"
+                f"{marker} {host}  region={info['region']} os={info.get('os', 'linux')} faction={info['faction']} transitions={','.join(info['transitions'])}"
             )
         return ExecResult(stdout=("\n".join(lines) + "\n") if lines else "", exit_code=0 if lines else 1)
 

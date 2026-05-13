@@ -167,15 +167,18 @@ class WorldSimulation:
             "region4": {"name": "The Ghost Network", "hosts": ["ghost-node"], "factions": ["null-sect"]},
             "region5": {"name": "The Memory Palace", "hosts": ["archive-vault"], "factions": ["salvagers"]},
             "region6": {"name": "The Epoch Core", "hosts": ["epoch-core"], "factions": ["mechanists", "signal-choir"]},
+            "region7": {"name": "The Legacy Citadel", "hosts": ["citadel-ad", "ops-win10"], "factions": ["mechanists"]},
         }
         self.hosts = {
-            "crash-site": {"region": "region0", "transitions": ["forge-hub", "neon-gateway"], "faction": "salvagers"},
-            "forge-hub": {"region": "region1", "transitions": ["crash-site", "forge-core"], "faction": "mechanists"},
-            "forge-core": {"region": "region2", "transitions": ["forge-hub", "archive-vault"], "faction": "mechanists"},
-            "neon-gateway": {"region": "region3", "transitions": ["crash-site", "ghost-node"], "faction": "signal-choir"},
-            "ghost-node": {"region": "region4", "transitions": ["neon-gateway", "epoch-core"], "faction": "null-sect"},
-            "archive-vault": {"region": "region5", "transitions": ["forge-core", "epoch-core"], "faction": "salvagers"},
-            "epoch-core": {"region": "region6", "transitions": ["archive-vault", "ghost-node"], "faction": "mechanists"},
+            "crash-site": {"region": "region0", "transitions": ["forge-hub", "neon-gateway"], "faction": "salvagers", "os": "linux"},
+            "forge-hub": {"region": "region1", "transitions": ["crash-site", "forge-core"], "faction": "mechanists", "os": "linux"},
+            "forge-core": {"region": "region2", "transitions": ["forge-hub", "archive-vault"], "faction": "mechanists", "os": "linux"},
+            "neon-gateway": {"region": "region3", "transitions": ["crash-site", "ghost-node", "citadel-ad"], "faction": "signal-choir", "os": "linux"},
+            "ghost-node": {"region": "region4", "transitions": ["neon-gateway", "epoch-core"], "faction": "null-sect", "os": "linux"},
+            "archive-vault": {"region": "region5", "transitions": ["forge-core", "epoch-core", "citadel-ad"], "faction": "salvagers", "os": "linux"},
+            "epoch-core": {"region": "region6", "transitions": ["archive-vault", "ghost-node"], "faction": "mechanists", "os": "linux"},
+            "citadel-ad": {"region": "region7", "transitions": ["neon-gateway", "archive-vault", "ops-win10"], "faction": "mechanists", "os": "windows"},
+            "ops-win10": {"region": "region7", "transitions": ["citadel-ad"], "faction": "mechanists", "os": "windows"},
         }
         self.npcs = {
             "rust": {"role": "salvage handler", "faction": "salvagers", "region": "region0"},
@@ -189,35 +192,50 @@ class WorldSimulation:
             ProcessEntry(142, "chronyd", "root", "crash-site", cpu=0.2, mem=0.3),
             ProcessEntry(188, "relayd", "svc_relay", "neon-gateway", cpu=1.7, mem=2.9),
             ProcessEntry(201, "veilhook", "root", "ghost-node", cpu=4.2, mem=1.1, malicious=True, hidden=True),
+            ProcessEntry(230, "lsass.exe", "SYSTEM", "citadel-ad", cpu=2.1, mem=3.4),
+            ProcessEntry(231, "winlogon.exe", "SYSTEM", "citadel-ad", cpu=0.5, mem=0.8),
+            ProcessEntry(232, "spoolsv.exe", "SYSTEM", "ops-win10", cpu=0.2, mem=0.6),
+            ProcessEntry(233, "wmiprvse.exe", "SYSTEM", "ops-win10", cpu=1.4, mem=1.1, malicious=True, hidden=True),
         ]
         self.services = {
             "sshd": ServiceEntry("sshd", "crash-site", "running", pid=131),
             "relayd": ServiceEntry("relayd", "neon-gateway", "running", pid=188),
             "edr-agent": ServiceEntry("edr-agent", "crash-site", "running", pid=222),
             "backupd": ServiceEntry("backupd", "forge-hub", "degraded", pid=None),
+            "winrm": ServiceEntry("winrm", "citadel-ad", "running", pid=230),
+            "spooler": ServiceEntry("spooler", "ops-win10", "running", pid=232),
+            "defender": ServiceEntry("defender", "ops-win10", "degraded", pid=None),
         }
         self.sockets = [
             SocketEntry("tcp", "0.0.0.0", 22, "LISTEN", 131, service="sshd"),
             SocketEntry("tcp", "0.0.0.0", 443, "LISTEN", 188, service="relayd"),
             SocketEntry("udp", "0.0.0.0", 53, "LISTEN", None, service="dns-cache"),
             SocketEntry("tcp", "10.42.0.9", 4444, "ESTAB", 201, remote="198.51.100.7:9001"),
+            SocketEntry("tcp", "10.42.7.11", 5985, "LISTEN", 230, service="winrm"),
+            SocketEntry("tcp", "10.42.7.25", 3389, "LISTEN", 232, service="spooler"),
         ]
         self.auth_events = [
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "10.0.9.7", "result": "failed"},
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "10.0.9.7", "result": "failed"},
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "10.0.9.7", "result": "failed"},
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "127.0.0.1", "result": "success"},
+            {"ts": _now(), "host": "citadel-ad", "user": "svc-backup", "src": "10.42.7.99", "result": "failed"},
+            {"ts": _now(), "host": "citadel-ad", "user": "svc-backup", "src": "10.42.7.99", "result": "success"},
         ]
         self.log_events = [
             {"ts": _now(), "host": "crash-site", "source": "kernel", "severity": "info", "message": "boot sequence restored"},
             {"ts": _now(), "host": "ghost-node", "source": "audit", "severity": "warning", "message": "tamper marks in auth journal"},
             {"ts": _now(), "host": "neon-gateway", "source": "netwatch", "severity": "warning", "message": "dns spike detected"},
+            {"ts": _now(), "host": "citadel-ad", "source": "security", "severity": "warning", "message": "NTLM spray attempt rate exceeded baseline"},
+            {"ts": _now(), "host": "ops-win10", "source": "defender", "severity": "warning", "message": "real-time protection restarted unexpectedly"},
         ]
         self.telemetry = [
             {"ts": _now(), "host": "crash-site", "metric": "cpu", "value": 39.2, "tags": ["host", "ops"]},
             {"ts": _now(), "host": "neon-gateway", "metric": "dns_qps", "value": 441.0, "tags": ["network", "anomaly"]},
             {"ts": _now(), "host": "ghost-node", "metric": "hidden_proc", "value": 1.0, "tags": ["edr", "stealth"]},
             {"ts": _now(), "host": "epoch-core", "metric": "correlation_gap", "value": 0.82, "tags": ["siem"]},
+            {"ts": _now(), "host": "citadel-ad", "metric": "auth_fail_rate", "value": 17.0, "tags": ["windows", "identity"]},
+            {"ts": _now(), "host": "ops-win10", "metric": "edr_gap", "value": 0.67, "tags": ["windows", "endpoint"]},
         ]
         self.incidents = {
             "INC-GLASS-VEIL": IncidentEntry(
@@ -239,13 +257,24 @@ class WorldSimulation:
                 severity="medium",
                 indicators=["service_restart_loop", "socket_churn"],
             ),
+            "INC-CITADEL-DUSK": IncidentEntry(
+                incident_id="INC-CITADEL-DUSK",
+                title="Citadel Dusk",
+                host="citadel-ad",
+                severity="high",
+                indicators=["failed_login", "wmiprvse_anomaly", "defender_restart"],
+                malware=True,
+                persistence_chain=True,
+                anti_forensics=True,
+                exfiltration=True,
+            ),
         }
         self.teams = {
             "blue-alpha": TeamEntry(
                 "blue-alpha",
                 members=["operator", "rust"],
-                sectors=["region0", "region3"],
-                shared_incidents=["INC-GLASS-VEIL"],
+                sectors=["region0", "region3", "region7"],
+                shared_incidents=["INC-GLASS-VEIL", "INC-CITADEL-DUSK"],
             )
         }
         self.events = {
