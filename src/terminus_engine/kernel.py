@@ -102,7 +102,7 @@ class VirtualKernel:
         path = self.vfs.resolve_path(cwd, target)
         include_hidden = "-a" in flags or "--all" in flags
         long = "-l" in flags
-        node, _ = self.vfs._walk(path)
+        node = self.vfs.get_node(path)
         if node.node_type == "dir":
             nodes = self.vfs.list_dir(path, include_hidden=include_hidden)
         else:
@@ -140,7 +140,7 @@ class VirtualKernel:
     def _cd(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
         target = args[0] if args else "/home/operator"
         path = self.vfs.resolve_path(cwd, target)
-        node, _ = self.vfs._walk(path)
+        node = self.vfs.get_node(path)
         if node.node_type != "dir":
             raise VFSError(f"not a directory: {target}")
         return ExecResult(stdout=f"__CWD__:{path}\n")
@@ -193,7 +193,7 @@ class VirtualKernel:
 
     def _coerce_dest(self, src: str, dst: str) -> str:
         if self.vfs.exists(dst):
-            node, _ = self.vfs._walk(dst)
+            node = self.vfs.get_node(dst)
             if node.node_type == "dir":
                 return str(PurePosixPath(dst) / PurePosixPath(src).name)
         return dst
@@ -312,7 +312,7 @@ class VirtualKernel:
         return ExecResult(stdout=("\n".join(rows) + "\n") if rows else "", exit_code=0 if rows else 1)
 
     def _collect_find_rows(self, abs_path: str, pattern: str, rows: list[str]) -> None:
-        node, _ = self.vfs._walk(abs_path)
+        node = self.vfs.get_node(abs_path)
         name = PurePosixPath(abs_path).name or "/"
         if fnmatch.fnmatch(name, pattern):
             rows.append(abs_path)
@@ -329,7 +329,7 @@ class VirtualKernel:
             raise ValueError("mode must be octal, e.g., 644")
         for target in args[1:]:
             path = self.vfs.resolve_path(cwd, target)
-            node, _ = self.vfs._walk(path)
+            node = self.vfs.get_node(path)
             node.mode = mode
             node.touch()
         return ExecResult()
@@ -341,7 +341,7 @@ class VirtualKernel:
         owner, sep, group = owner_spec.partition(":")
         for target in args[1:]:
             path = self.vfs.resolve_path(cwd, target)
-            node, _ = self.vfs._walk(path)
+            node = self.vfs.get_node(path)
             node.owner = owner or node.owner
             if sep:
                 node.group = group or node.group
@@ -366,7 +366,7 @@ class VirtualKernel:
         return ExecResult(stdout=f"{size}\t{path}\n")
 
     def _du_size(self, abs_path: str) -> int:
-        node, _ = self.vfs._walk(abs_path)
+        node = self.vfs.get_node(abs_path)
         if node.node_type == "file":
             return len(node.content.encode("utf-8"))
         total = 0
@@ -672,13 +672,17 @@ class VirtualKernel:
             module = self.world.next_training_module()
             if module is None:
                 return ExecResult(stdout="all foundational linux modules completed\n")
-            if module["id"] == "LNX-003":
-                seed_path = "/home/operator/training/incidents.log"
-                if not self.vfs.exists(seed_path):
-                    self.vfs.write_file(
-                        seed_path,
-                        "event=normal\nevent=anomaly_detected src=10.42.7.99\nevent=normal\n",
-                    )
+            seed_files = module.get("seed_files", [])
+            if isinstance(seed_files, list):
+                for item in seed_files:
+                    if not isinstance(item, dict):
+                        continue
+                    seed_path = str(item.get("path", ""))
+                    content = str(item.get("content", ""))
+                    if seed_path and not self.vfs.exists(seed_path):
+                        parent_path = str(PurePosixPath(seed_path).parent) or "/"
+                        self.vfs.mkdir(parent_path, parents=True)
+                        self.vfs.write_file(seed_path, content)
             return ExecResult(
                 stdout=(
                     f"{module['id']} {module['title']}\n"
@@ -692,6 +696,16 @@ class VirtualKernel:
             if len(args) < 2:
                 raise ValueError("usage: training check MODULE_ID")
             module_id = args[1]
+            module_order = [str(module["id"]) for module in self.world.training_modules]
+            if module_id not in module_order:
+                raise ValueError(f"unknown training module: {module_id}")
+            module_index = module_order.index(module_id)
+            incomplete_before = [mid for mid in module_order[:module_index] if mid not in self.world.completed_training]
+            if incomplete_before:
+                return ExecResult(
+                    stdout=f"{module_id} pending: complete prerequisites first -> {', '.join(incomplete_before)}\n",
+                    exit_code=1,
+                )
             complete, feedback = self._evaluate_training_module(module_id=module_id, cwd=cwd)
             if complete:
                 self.world.complete_training_module(module_id)
@@ -700,25 +714,42 @@ class VirtualKernel:
         raise ValueError("usage: training [list|next|check MODULE_ID]")
 
     def _evaluate_training_module(self, module_id: str, cwd: str) -> tuple[bool, str]:
-        if module_id == "LNX-001":
+        if module_id == "ANA-001":
             workspace = "/home/operator/training"
             if self.vfs.exists(workspace) and cwd == workspace:
-                return True, "workspace created and active directory set"
+                summary = self.vfs.resolve_path(workspace, "data-summary.txt")
+                if not self.vfs.exists(summary):
+                    return False, "create data-summary.txt using auth_sample.log"
+                content = self.vfs.read_file(summary).lower()
+                if "failed_login" in content:
+                    return True, "data triage validated from log artifacts"
+                return False, "data-summary.txt must contain 'failed_login'"
             return False, "create /home/operator/training and cd into it"
-        if module_id == "LNX-002":
-            notes = self.vfs.resolve_path("/home/operator/training", "notes.txt")
-            if not self.vfs.exists(notes):
-                return False, "notes.txt not found in /home/operator/training"
-            content = self.vfs.read_file(notes).lower()
-            if "linux fundamentals" in content:
-                return True, "notes.txt contains linux fundamentals"
-            return False, "notes.txt must include the phrase 'linux fundamentals'"
-        if module_id == "LNX-003":
-            evidence = self.vfs.resolve_path("/home/operator/training", "evidence.txt")
-            if not self.vfs.exists(evidence):
-                return False, "evidence.txt not found; use grep pipeline and redirection"
-            content = self.vfs.read_file(evidence).lower()
-            if "anomaly" in content:
-                return True, "pipeline filtering and redirection validated"
-            return False, "evidence.txt must contain a line with 'anomaly'"
+        if module_id == "ANA-002":
+            summary = self.vfs.resolve_path("/home/operator/training", "system-summary.txt")
+            if not self.vfs.exists(summary):
+                return False, "system-summary.txt not found; capture systemctl status sshd output"
+            content = self.vfs.read_file(summary).lower()
+            if "sshd" in content and "running" in content:
+                return True, "system service analysis validated"
+            return False, "system-summary.txt must include 'sshd' and 'running'"
+        if module_id == "ANA-003":
+            summary = self.vfs.resolve_path("/home/operator/training", "network-summary.txt")
+            if not self.vfs.exists(summary):
+                return False, "network-summary.txt not found; capture ss output"
+            content = self.vfs.read_file(summary)
+            if "LISTEN" in content:
+                return True, "network exposure analysis validated"
+            return False, "network-summary.txt must include LISTEN sockets"
+        if module_id == "ANA-004":
+            report = self.vfs.resolve_path("/home/operator/training", "security-summary.txt")
+            incident = self.world.incidents.get("INC-GLASS-VEIL")
+            if incident is None or incident.status != "contained":
+                return False, "contain INC-GLASS-VEIL first"
+            if not self.vfs.exists(report):
+                return False, "security-summary.txt not found"
+            content = self.vfs.read_file(report).lower()
+            if "contained" in content:
+                return True, "security response and reporting validated"
+            return False, "security-summary.txt must include 'contained'"
         raise ValueError(f"unknown training module: {module_id}")

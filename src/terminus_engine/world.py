@@ -19,6 +19,7 @@ def _default_skills() -> dict[str, int]:
 
 LOW_THREAT_MIN_STABILITY = 85
 MEDIUM_THREAT_MIN_STABILITY = 65
+HIGH_THREAT_MIN_STABILITY = 40
 SEVERITY_STABILITY_PENALTY = {"low": 4, "medium": 8, "high": 14, "critical": 18}
 
 
@@ -27,12 +28,65 @@ def _threat_level_for_stability(stability: int) -> str:
         return "low"
     if stability >= MEDIUM_THREAT_MIN_STABILITY:
         return "medium"
-    return "high"
+    if stability >= HIGH_THREAT_MIN_STABILITY:
+        return "high"
+    return "critical"
 
 
 def _max_threat(level_a: str, level_b: str) -> str:
-    rank = {"low": 1, "medium": 2, "high": 3}
+    rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
     return level_a if rank.get(level_a, 0) >= rank.get(level_b, 0) else level_b
+
+
+def _default_training_modules() -> list[dict[str, object]]:
+    return [
+        {
+            "id": "ANA-001",
+            "title": "Data Analysis Foundations",
+            "focus": "cat, grep, wc, head, tail",
+            "objective": "Build /home/operator/training/data-summary.txt with a failed_login count from auth_sample.log.",
+            "hint": "grep failed_login auth_sample.log > data-summary.txt",
+            "skill_rewards": {"shell_fluency": 1, "forensics": 1},
+            "seed_files": [
+                {
+                    "path": "/home/operator/training/auth_sample.log",
+                    "content": "failed_login user=unknown src=10.0.0.1\nsuccess_login user=operator src=127.0.0.1\nfailed_login user=svc src=10.0.0.2\n",
+                }
+            ],
+        },
+        {
+            "id": "ANA-002",
+            "title": "System Operations Foundations",
+            "focus": "ps, kill, systemctl, ls, chmod",
+            "objective": "Create /home/operator/training/system-summary.txt containing 'sshd' and 'running'.",
+            "hint": "systemctl status sshd > system-summary.txt",
+            "skill_rewards": {"incident_response": 1, "shell_fluency": 1},
+            "seed_files": [],
+        },
+        {
+            "id": "ANA-003",
+            "title": "Network Analysis Foundations",
+            "focus": "ss, telemetry, find, wc",
+            "objective": "Create /home/operator/training/network-summary.txt containing 'LISTEN'.",
+            "hint": "ss > network-summary.txt",
+            "skill_rewards": {"networking": 1, "forensics": 1},
+            "seed_files": [
+                {
+                    "path": "/home/operator/training/network_notes.txt",
+                    "content": "track LISTEN sockets first, then map unusual peers.\n",
+                }
+            ],
+        },
+        {
+            "id": "ANA-004",
+            "title": "Security Operations Capstone",
+            "focus": "incidents, contain, logs, telemetry",
+            "objective": "Contain INC-GLASS-VEIL and create /home/operator/training/security-summary.txt including 'contained'.",
+            "hint": "contain INC-GLASS-VEIL && incidents show INC-GLASS-VEIL > security-summary.txt",
+            "skill_rewards": {"incident_response": 2, "forensics": 1, "networking": 1},
+            "seed_files": [],
+        },
+    ]
 
 
 def _default_dialogue_scripts() -> dict[str, list[str]]:
@@ -164,7 +218,7 @@ class WorldSimulation:
     online_sessions: list[str] = field(default_factory=lambda: ["operator"])
     skills: dict[str, int] = field(default_factory=dict)
     dialogue_scripts: dict[str, list[str]] = field(default_factory=dict)
-    training_modules: list[dict[str, str]] = field(default_factory=list)
+    training_modules: list[dict[str, object]] = field(default_factory=list)
     completed_training: list[str] = field(default_factory=list)
     host_states: dict[str, dict] = field(default_factory=dict)
     avatar_traces: list[dict] = field(default_factory=list)
@@ -319,29 +373,7 @@ class WorldSimulation:
         }
         self.skills = _default_skills()
         self.dialogue_scripts = _default_dialogue_scripts()
-        self.training_modules = [
-            {
-                "id": "LNX-001",
-                "title": "Navigation and workspace setup",
-                "focus": "pwd, ls, cd, mkdir",
-                "objective": "Create /home/operator/training and move into it.",
-                "hint": "mkdir -p /home/operator/training && cd /home/operator/training",
-            },
-            {
-                "id": "LNX-002",
-                "title": "File creation and inspection",
-                "focus": "touch, echo, cat",
-                "objective": "Create notes.txt containing 'linux fundamentals'.",
-                "hint": "echo linux fundamentals > notes.txt && cat notes.txt",
-            },
-            {
-                "id": "LNX-003",
-                "title": "Pipelines and filtering",
-                "focus": "cat, grep, redirection",
-                "objective": "Create evidence.txt containing a line with 'anomaly'.",
-                "hint": "cat incidents.log | grep anomaly > evidence.txt",
-            },
-        ]
+        self.training_modules = _default_training_modules()
         self._initialize_host_states()
         self._seed_avatar_traces()
         self._refresh_detections()
@@ -561,7 +593,7 @@ class WorldSimulation:
             rows.append(row)
         return rows
 
-    def next_training_module(self) -> dict[str, str] | None:
+    def next_training_module(self) -> dict[str, object] | None:
         completed = set(self.completed_training)
         for module in self.training_modules:
             if module["id"] not in completed:
@@ -569,15 +601,16 @@ class WorldSimulation:
         return None
 
     def complete_training_module(self, module_id: str) -> bool:
-        valid_ids = {module["id"] for module in self.training_modules}
-        if module_id not in valid_ids:
+        module = next((item for item in self.training_modules if item["id"] == module_id), None)
+        if module is None:
             raise ValueError(f"unknown training module: {module_id}")
         if module_id in self.completed_training:
             return False
         self.completed_training.append(module_id)
-        self.increment_skill("shell_fluency")
-        if module_id == "LNX-003":
-            self.increment_skill("forensics")
+        rewards = module.get("skill_rewards", {})
+        if isinstance(rewards, dict):
+            for skill_name, amount in rewards.items():
+                self.increment_skill(str(skill_name), int(amount))
         self.log_events.append(
             {"ts": _now(), "host": self.current_host, "source": "training", "severity": "info", "message": f"{module_id} completed"}
         )
@@ -765,29 +798,7 @@ class WorldSimulation:
         if not world.skills:
             world.skills = _default_skills()
         if not world.training_modules:
-            world.training_modules = [
-                {
-                    "id": "LNX-001",
-                    "title": "Navigation and workspace setup",
-                    "focus": "pwd, ls, cd, mkdir",
-                    "objective": "Create /home/operator/training and move into it.",
-                    "hint": "mkdir -p /home/operator/training && cd /home/operator/training",
-                },
-                {
-                    "id": "LNX-002",
-                    "title": "File creation and inspection",
-                    "focus": "touch, echo, cat",
-                    "objective": "Create notes.txt containing 'linux fundamentals'.",
-                    "hint": "echo linux fundamentals > notes.txt && cat notes.txt",
-                },
-                {
-                    "id": "LNX-003",
-                    "title": "Pipelines and filtering",
-                    "focus": "cat, grep, redirection",
-                    "objective": "Create evidence.txt containing a line with 'anomaly'.",
-                    "hint": "cat incidents.log | grep anomaly > evidence.txt",
-                },
-            ]
+            world.training_modules = _default_training_modules()
         if not world.host_states:
             world._initialize_host_states()
         if not world.avatar_traces:

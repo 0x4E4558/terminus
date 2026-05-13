@@ -223,25 +223,30 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         shell = ShellEngine(kernel=kernel, session=SessionState())
 
         training_list = await shell.handle_line("training list")
-        self.assertIn("LNX-001", training_list)
+        self.assertIn("ANA-001", training_list)
         self.assertIn("[ ]", training_list)
 
         training_next = await shell.handle_line("training next")
-        self.assertIn("Navigation and workspace setup", training_next)
+        self.assertIn("Data Analysis Foundations", training_next)
 
         await shell.handle_line("mkdir -p /home/operator/training")
         await shell.handle_line("cd /home/operator/training")
-        lnx1 = await shell.handle_line("training check LNX-001")
-        self.assertIn("LNX-001 complete", lnx1)
+        await shell.handle_line("grep failed_login auth_sample.log > data-summary.txt")
+        stage1 = await shell.handle_line("training check ANA-001")
+        self.assertIn("ANA-001 complete", stage1)
 
-        await shell.handle_line("echo linux fundamentals > notes.txt")
-        lnx2 = await shell.handle_line("training check LNX-002")
-        self.assertIn("LNX-002 complete", lnx2)
+        await shell.handle_line("systemctl status sshd > system-summary.txt")
+        stage2 = await shell.handle_line("training check ANA-002")
+        self.assertIn("ANA-002 complete", stage2)
 
-        await shell.handle_line("training next")
-        await shell.handle_line("cat incidents.log | grep anomaly > evidence.txt")
-        lnx3 = await shell.handle_line("training check LNX-003")
-        self.assertIn("LNX-003 complete", lnx3)
+        await shell.handle_line("ss > network-summary.txt")
+        stage3 = await shell.handle_line("training check ANA-003")
+        self.assertIn("ANA-003 complete", stage3)
+
+        await shell.handle_line("contain INC-GLASS-VEIL")
+        await shell.handle_line("incidents show INC-GLASS-VEIL > security-summary.txt")
+        stage4 = await shell.handle_line("training check ANA-004")
+        self.assertIn("ANA-004 complete", stage4)
 
         done = await shell.handle_line("training next")
         self.assertIn("all foundational linux modules completed", done)

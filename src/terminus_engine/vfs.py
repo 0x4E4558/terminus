@@ -118,6 +118,10 @@ class VirtualFilesystem:
         except FileNotFoundError:
             return False
 
+    def get_node(self, abs_path: str) -> VFSNode:
+        node, _ = self._walk(abs_path)
+        return node
+
     def mkdir(self, abs_path: str, parents: bool = True) -> None:
         if abs_path == "/":
             return
