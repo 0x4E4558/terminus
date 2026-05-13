@@ -8,6 +8,41 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _default_skills() -> dict[str, int]:
+    return {
+        "shell_fluency": 1,
+        "forensics": 1,
+        "networking": 1,
+        "incident_response": 1,
+    }
+
+
+def _default_dialogue_scripts() -> dict[str, list[str]]:
+    """Seed dialogue channels used as in-world guidance from system and NPC voices."""
+    return {
+        "system": [
+            "ANOMALY CONFIRMED: shell telemetry drift detected across relay sectors.",
+            "SOC BRIEF: Investigate evidence before issuing containment orders.",
+        ],
+        "rust": [
+            "Scrap logs never lie, operator. Start with authlog before touching services.",
+            "If you contain too early, you bury the trail with your own noise.",
+        ],
+        "cinder": [
+            "Forge-hub relays are unstable. Check sockets and service state together.",
+            "Degraded backups usually follow process tampering, not hardware faults.",
+        ],
+        "choirmaster": [
+            "Traffic harmonics broke in region3. DNS spikes are a chorus, not a solo.",
+            "Correlate telemetry with incidents or you'll chase false positives all night.",
+        ],
+        "veil": [
+            "Hidden processes survive where defenders only read the obvious dashboards.",
+            "Every containment leaves residue. Logs will remember what operators miss.",
+        ],
+    }
+
+
 @dataclass(slots=True)
 class ProcessEntry:
     pid: int
@@ -109,6 +144,8 @@ class WorldSimulation:
     rules: dict[str, DetectionRule] = field(default_factory=dict)
     detections: list[DetectionHit] = field(default_factory=list)
     online_sessions: list[str] = field(default_factory=lambda: ["operator"])
+    skills: dict[str, int] = field(default_factory=dict)
+    dialogue_scripts: dict[str, list[str]] = field(default_factory=dict)
     next_pid: int = 240
 
     def __post_init__(self) -> None:
@@ -130,15 +167,18 @@ class WorldSimulation:
             "region4": {"name": "The Ghost Network", "hosts": ["ghost-node"], "factions": ["null-sect"]},
             "region5": {"name": "The Memory Palace", "hosts": ["archive-vault"], "factions": ["salvagers"]},
             "region6": {"name": "The Epoch Core", "hosts": ["epoch-core"], "factions": ["mechanists", "signal-choir"]},
+            "region7": {"name": "The Legacy Citadel", "hosts": ["citadel-ad", "ops-win10"], "factions": ["mechanists"]},
         }
         self.hosts = {
-            "crash-site": {"region": "region0", "transitions": ["forge-hub", "neon-gateway"], "faction": "salvagers"},
-            "forge-hub": {"region": "region1", "transitions": ["crash-site", "forge-core"], "faction": "mechanists"},
-            "forge-core": {"region": "region2", "transitions": ["forge-hub", "archive-vault"], "faction": "mechanists"},
-            "neon-gateway": {"region": "region3", "transitions": ["crash-site", "ghost-node"], "faction": "signal-choir"},
-            "ghost-node": {"region": "region4", "transitions": ["neon-gateway", "epoch-core"], "faction": "null-sect"},
-            "archive-vault": {"region": "region5", "transitions": ["forge-core", "epoch-core"], "faction": "salvagers"},
-            "epoch-core": {"region": "region6", "transitions": ["archive-vault", "ghost-node"], "faction": "mechanists"},
+            "crash-site": {"region": "region0", "transitions": ["forge-hub", "neon-gateway"], "faction": "salvagers", "os": "linux"},
+            "forge-hub": {"region": "region1", "transitions": ["crash-site", "forge-core"], "faction": "mechanists", "os": "linux"},
+            "forge-core": {"region": "region2", "transitions": ["forge-hub", "archive-vault"], "faction": "mechanists", "os": "linux"},
+            "neon-gateway": {"region": "region3", "transitions": ["crash-site", "ghost-node", "citadel-ad"], "faction": "signal-choir", "os": "linux"},
+            "ghost-node": {"region": "region4", "transitions": ["neon-gateway", "epoch-core"], "faction": "null-sect", "os": "linux"},
+            "archive-vault": {"region": "region5", "transitions": ["forge-core", "epoch-core", "citadel-ad"], "faction": "salvagers", "os": "linux"},
+            "epoch-core": {"region": "region6", "transitions": ["archive-vault", "ghost-node"], "faction": "mechanists", "os": "linux"},
+            "citadel-ad": {"region": "region7", "transitions": ["neon-gateway", "archive-vault", "ops-win10"], "faction": "mechanists", "os": "windows"},
+            "ops-win10": {"region": "region7", "transitions": ["citadel-ad"], "faction": "mechanists", "os": "windows"},
         }
         self.npcs = {
             "rust": {"role": "salvage handler", "faction": "salvagers", "region": "region0"},
@@ -152,35 +192,50 @@ class WorldSimulation:
             ProcessEntry(142, "chronyd", "root", "crash-site", cpu=0.2, mem=0.3),
             ProcessEntry(188, "relayd", "svc_relay", "neon-gateway", cpu=1.7, mem=2.9),
             ProcessEntry(201, "veilhook", "root", "ghost-node", cpu=4.2, mem=1.1, malicious=True, hidden=True),
+            ProcessEntry(230, "lsass.exe", "SYSTEM", "citadel-ad", cpu=2.1, mem=3.4),
+            ProcessEntry(231, "winlogon.exe", "SYSTEM", "citadel-ad", cpu=0.5, mem=0.8),
+            ProcessEntry(232, "spoolsv.exe", "SYSTEM", "ops-win10", cpu=0.2, mem=0.6),
+            ProcessEntry(233, "wmiprvse.exe", "SYSTEM", "ops-win10", cpu=1.4, mem=1.1, malicious=True, hidden=True),
         ]
         self.services = {
             "sshd": ServiceEntry("sshd", "crash-site", "running", pid=131),
             "relayd": ServiceEntry("relayd", "neon-gateway", "running", pid=188),
             "edr-agent": ServiceEntry("edr-agent", "crash-site", "running", pid=222),
             "backupd": ServiceEntry("backupd", "forge-hub", "degraded", pid=None),
+            "winrm": ServiceEntry("winrm", "citadel-ad", "running", pid=230),
+            "spooler": ServiceEntry("spooler", "ops-win10", "running", pid=232),
+            "defender": ServiceEntry("defender", "ops-win10", "degraded", pid=None),
         }
         self.sockets = [
             SocketEntry("tcp", "0.0.0.0", 22, "LISTEN", 131, service="sshd"),
             SocketEntry("tcp", "0.0.0.0", 443, "LISTEN", 188, service="relayd"),
             SocketEntry("udp", "0.0.0.0", 53, "LISTEN", None, service="dns-cache"),
             SocketEntry("tcp", "10.42.0.9", 4444, "ESTAB", 201, remote="198.51.100.7:9001"),
+            SocketEntry("tcp", "10.42.7.11", 5985, "LISTEN", 230, service="winrm"),
+            SocketEntry("tcp", "10.42.7.25", 3389, "LISTEN", 232, service="spooler"),
         ]
         self.auth_events = [
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "10.0.9.7", "result": "failed"},
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "10.0.9.7", "result": "failed"},
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "10.0.9.7", "result": "failed"},
             {"ts": _now(), "host": "crash-site", "user": "operator", "src": "127.0.0.1", "result": "success"},
+            {"ts": _now(), "host": "citadel-ad", "user": "svc-backup", "src": "10.42.7.99", "result": "failed"},
+            {"ts": _now(), "host": "citadel-ad", "user": "svc-backup", "src": "10.42.7.99", "result": "success"},
         ]
         self.log_events = [
             {"ts": _now(), "host": "crash-site", "source": "kernel", "severity": "info", "message": "boot sequence restored"},
             {"ts": _now(), "host": "ghost-node", "source": "audit", "severity": "warning", "message": "tamper marks in auth journal"},
             {"ts": _now(), "host": "neon-gateway", "source": "netwatch", "severity": "warning", "message": "dns spike detected"},
+            {"ts": _now(), "host": "citadel-ad", "source": "security", "severity": "warning", "message": "NTLM spray attempt rate exceeded baseline"},
+            {"ts": _now(), "host": "ops-win10", "source": "defender", "severity": "warning", "message": "real-time protection restarted unexpectedly"},
         ]
         self.telemetry = [
             {"ts": _now(), "host": "crash-site", "metric": "cpu", "value": 39.2, "tags": ["host", "ops"]},
             {"ts": _now(), "host": "neon-gateway", "metric": "dns_qps", "value": 441.0, "tags": ["network", "anomaly"]},
             {"ts": _now(), "host": "ghost-node", "metric": "hidden_proc", "value": 1.0, "tags": ["edr", "stealth"]},
             {"ts": _now(), "host": "epoch-core", "metric": "correlation_gap", "value": 0.82, "tags": ["siem"]},
+            {"ts": _now(), "host": "citadel-ad", "metric": "auth_fail_rate", "value": 17.0, "tags": ["windows", "identity"]},
+            {"ts": _now(), "host": "ops-win10", "metric": "edr_gap", "value": 0.67, "tags": ["windows", "endpoint"]},
         ]
         self.incidents = {
             "INC-GLASS-VEIL": IncidentEntry(
@@ -202,13 +257,24 @@ class WorldSimulation:
                 severity="medium",
                 indicators=["service_restart_loop", "socket_churn"],
             ),
+            "INC-CITADEL-DUSK": IncidentEntry(
+                incident_id="INC-CITADEL-DUSK",
+                title="Citadel Dusk",
+                host="citadel-ad",
+                severity="high",
+                indicators=["failed_login", "wmiprvse_anomaly", "defender_restart"],
+                malware=True,
+                persistence_chain=True,
+                anti_forensics=True,
+                exfiltration=True,
+            ),
         }
         self.teams = {
             "blue-alpha": TeamEntry(
                 "blue-alpha",
                 members=["operator", "rust"],
-                sectors=["region0", "region3"],
-                shared_incidents=["INC-GLASS-VEIL"],
+                sectors=["region0", "region3", "region7"],
+                shared_incidents=["INC-GLASS-VEIL", "INC-CITADEL-DUSK"],
             )
         }
         self.events = {
@@ -225,6 +291,8 @@ class WorldSimulation:
             "detect-hidden-proc": DetectionRule("detect-hidden-proc", "hidden_process", "critical"),
             "detect-auth-bruteforce": DetectionRule("detect-auth-bruteforce", "failed_login", "medium"),
         }
+        self.skills = _default_skills()
+        self.dialogue_scripts = _default_dialogue_scripts()
         self._refresh_detections()
 
     def _refresh_detections(self) -> None:
@@ -266,11 +334,17 @@ class WorldSimulation:
     def kill(self, pid: int) -> bool:
         for idx, proc in enumerate(self.processes):
             if proc.pid == pid:
+                matched_malicious = proc.malicious
+                matched_hidden = proc.hidden
                 del self.processes[idx]
                 for svc in self.services.values():
                     if svc.pid == pid:
                         svc.status = "stopped"
                         svc.pid = None
+                if matched_malicious:
+                    self.increment_skill("incident_response")
+                if matched_hidden:
+                    self.increment_skill("forensics")
                 self.log_events.append(
                     {"ts": _now(), "host": self.current_host, "source": "kernel", "severity": "info", "message": f"pid {pid} terminated"}
                 )
@@ -313,7 +387,75 @@ class WorldSimulation:
             {"ts": _now(), "host": incident.host, "source": "response", "severity": "warning", "message": f"{incident_id} containment initiated"}
         )
         self.telemetry.append({"ts": _now(), "host": incident.host, "metric": "containment", "value": 1.0, "tags": ["incident", incident_id]})
+        self.increment_skill("incident_response")
+        self.increment_skill("forensics")
         self._refresh_detections()
+
+    def get_dialogue(self, speaker: str) -> list[str]:
+        speaker_key = speaker.lower()
+        lines = self.dialogue_scripts.get(speaker_key)
+        if lines is None:
+            channels = ", ".join(sorted(self.dialogue_scripts.keys()))
+            raise ValueError(f"unknown dialogue channel: {speaker}. available channels: {channels}")
+        output = list(lines)
+        open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
+        if speaker_key == "system":
+            output.append(f"ACTIVE HOST: {self.current_host} | OPEN INCIDENTS: {open_incidents} | DETECTIONS: {len(self.detections)}")
+        if speaker_key != "system" and open_incidents > 0:
+            output.append(f"{speaker_key}: {open_incidents} unresolved incidents still shaping the sector.")
+        contained = [incident.incident_id for incident in self.incidents.values() if incident.status == "contained"]
+        if contained:
+            output.append(f"Contained incidents acknowledged: {', '.join(contained)}. Continue hunting for residual persistence.")
+        return output
+
+    def increment_skill(self, skill_name: str, amount: int = 1) -> None:
+        self.skills[skill_name] = self.skills.get(skill_name, 0) + amount
+
+    def average_skill_level(self) -> float:
+        if not self.skills:
+            return 1.0
+        return sum(self.skills.values()) / len(self.skills)
+
+    def objectives(self) -> list[dict[str, str]]:
+        hidden_malware = any(proc.malicious and proc.hidden for proc in self.processes)
+        open_incidents = any(incident.status == "open" for incident in self.incidents.values())
+        degraded_services = any(service.status != "running" for service in self.services.values())
+        return [
+            {
+                "id": "OBJ-RECON-001",
+                "status": "open" if hidden_malware else "complete",
+                "title": "Identify stealth malware process paths",
+                "hint": "Use ps -A, edr hunt, and telemetry correlation.",
+            },
+            {
+                "id": "OBJ-CONTAIN-002",
+                "status": "open" if open_incidents else "complete",
+                "title": "Contain active incidents without erasing evidence",
+                "hint": "Review incidents show, authlog, and logs before contain.",
+            },
+            {
+                "id": "OBJ-RESTORE-003",
+                "status": "open" if degraded_services else "complete",
+                "title": "Restore degraded services and verify sockets",
+                "hint": "Correlate systemctl status with ss and telemetry.",
+            },
+        ]
+
+    def metrics(self) -> dict[str, float | int]:
+        open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
+        contained_incidents = sum(1 for incident in self.incidents.values() if incident.status == "contained")
+        hidden_malware = sum(1 for proc in self.processes if proc.malicious and proc.hidden)
+        running_services = sum(1 for service in self.services.values() if service.status == "running")
+        avg_skill = self.average_skill_level()
+        return {
+            "open_incidents": open_incidents,
+            "contained_incidents": contained_incidents,
+            "detections": len(self.detections),
+            "hidden_malware": hidden_malware,
+            "running_services": running_services,
+            "total_services": len(self.services),
+            "learning_index": round(avg_skill, 2),
+        }
 
     def to_dict(self) -> dict:
         return {
@@ -335,6 +477,8 @@ class WorldSimulation:
             "rules": {k: asdict(v) for k, v in self.rules.items()},
             "detections": [asdict(d) for d in self.detections],
             "online_sessions": list(self.online_sessions),
+            "skills": dict(self.skills),
+            "dialogue_scripts": {k: list(v) for k, v in self.dialogue_scripts.items()},
             "next_pid": self.next_pid,
         }
 
@@ -359,8 +503,17 @@ class WorldSimulation:
         world.rules = {k: DetectionRule(**v) for k, v in data.get("rules", {}).items()}
         world.detections = [DetectionHit(**item) for item in data.get("detections", [])]
         world.online_sessions = data.get("online_sessions", ["operator"])
+        world.skills = data.get(
+            "skills",
+            _default_skills(),
+        )
+        world.dialogue_scripts = data.get("dialogue_scripts", {})
         world.next_pid = data.get("next_pid", 240)
         if not world.regions:
             world._seed()
+        if not world.dialogue_scripts:
+            world.dialogue_scripts = _default_dialogue_scripts()
+        if not world.skills:
+            world.skills = _default_skills()
         world._refresh_detections()
         return world
