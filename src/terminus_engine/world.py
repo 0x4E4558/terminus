@@ -43,7 +43,7 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-001",
             "title": "Data Analysis Foundations",
-            "focus": "cat, grep, wc, head, tail",
+            "focus": "pwd, ls, cd, cat, grep, wc, head, tail, find",
             "objective": "Build /home/operator/training/data-summary.txt with a failed_login count from auth_sample.log.",
             "hint": "grep failed_login auth_sample.log > data-summary.txt",
             "skill_rewards": {"shell_fluency": 1, "forensics": 1},
@@ -57,16 +57,16 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-002",
             "title": "System Operations Foundations",
-            "focus": "ps, kill, systemctl, ls, chmod",
-            "objective": "Create /home/operator/training/system-summary.txt containing 'sshd' and 'running'.",
-            "hint": "systemctl status sshd > system-summary.txt",
+            "focus": "ps, kill, systemctl, chmod, chown, cp, mv, rm",
+            "objective": "Create /home/operator/training/system-summary.txt containing 'sshd' and 'running' with strict file controls.",
+            "hint": "systemctl status sshd > system-summary.txt && chmod 640 system-summary.txt && chown root:operators system-summary.txt",
             "skill_rewards": {"incident_response": 1, "shell_fluency": 1},
             "seed_files": [],
         },
         {
             "id": "ANA-003",
             "title": "Network Analysis Foundations",
-            "focus": "ss, telemetry, find, wc",
+            "focus": "ss, telemetry, grep, wc, du, df, free",
             "objective": "Create /home/operator/training/network-summary.txt containing 'LISTEN'.",
             "hint": "ss > network-summary.txt",
             "skill_rewards": {"networking": 1, "forensics": 1},
@@ -80,10 +80,19 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-004",
             "title": "Security Operations Capstone",
-            "focus": "incidents, contain, logs, telemetry",
+            "focus": "incidents, contain, logs, telemetry, edr, malware, authlog",
             "objective": "Contain INC-GLASS-VEIL and create /home/operator/training/security-summary.txt including 'contained'.",
             "hint": "contain INC-GLASS-VEIL && incidents show INC-GLASS-VEIL > security-summary.txt",
             "skill_rewards": {"incident_response": 2, "forensics": 1, "networking": 1},
+            "seed_files": [],
+        },
+        {
+            "id": "ANA-005",
+            "title": "Forensic Data Tracking",
+            "focus": "forensics, cat, grep, find, wc, logs",
+            "objective": "Record chain-of-custody entries and export /home/operator/training/forensics-ledger.txt with INC-GLASS-VEIL evidence.",
+            "hint": "forensics record INC-GLASS-VEIL logs chain_of_custody && forensics export /home/operator/training/forensics-ledger.txt",
+            "skill_rewards": {"forensics": 2, "incident_response": 1},
             "seed_files": [],
         },
     ]
@@ -218,15 +227,16 @@ class WorldSimulation:
     online_sessions: list[str] = field(default_factory=lambda: ["operator"])
     skills: dict[str, int] = field(default_factory=dict)
     dialogue_scripts: dict[str, list[str]] = field(default_factory=dict)
+    forensic_records: list[dict] = field(default_factory=list)
     training_modules: list[dict[str, object]] = field(default_factory=list)
     completed_training: list[str] = field(default_factory=list)
     host_states: dict[str, dict] = field(default_factory=dict)
     avatar_traces: list[dict] = field(default_factory=list)
     world_tick: int = 0
     next_pid: int = 240
-    _state_revision: int = 0
-    _objectives_cache: tuple[int, list[dict[str, str]]] | None = None
-    _metrics_cache: tuple[int, dict[str, float | int]] | None = None
+    state_revision: int = 0
+    objectives_cache: tuple[int, list[dict[str, str]]] | None = None
+    metrics_cache: tuple[int, dict[str, float | int]] | None = None
 
     def __post_init__(self) -> None:
         if not self.regions:
@@ -380,9 +390,9 @@ class WorldSimulation:
         self._mark_dirty()
 
     def _mark_dirty(self) -> None:
-        self._state_revision += 1
-        self._objectives_cache = None
-        self._metrics_cache = None
+        self.state_revision += 1
+        self.objectives_cache = None
+        self.metrics_cache = None
 
     def _initialize_host_states(self) -> None:
         self.host_states = {}
@@ -584,6 +594,29 @@ class WorldSimulation:
         self.skills[skill_name] = self.skills.get(skill_name, 0) + amount
         self._mark_dirty()
 
+    def add_forensic_record(self, evidence_id: str, source: str, analyst: str, notes: str) -> dict:
+        record = {
+            "ts": _now(),
+            "host": self.current_host,
+            "evidence_id": evidence_id,
+            "source": source,
+            "analyst": analyst,
+            "notes": notes,
+        }
+        self.forensic_records.append(record)
+        self.log_events.append(
+            {
+                "ts": record["ts"],
+                "host": self.current_host,
+                "source": "forensics",
+                "severity": "info",
+                "message": f"evidence tracked {evidence_id} source={source}",
+            }
+        )
+        self.increment_skill("forensics")
+        self._mark_dirty()
+        return record
+
     def training_overview(self) -> list[dict[str, str]]:
         rows: list[dict[str, str]] = []
         completed = set(self.completed_training)
@@ -623,8 +656,8 @@ class WorldSimulation:
         return sum(self.skills.values()) / len(self.skills)
 
     def objectives(self) -> list[dict[str, str]]:
-        if self._objectives_cache and self._objectives_cache[0] == self._state_revision:
-            return [dict(item) for item in self._objectives_cache[1]]
+        if self.objectives_cache and self.objectives_cache[0] == self.state_revision:
+            return [dict(item) for item in self.objectives_cache[1]]
         hidden_malware = any(proc.malicious and proc.hidden for proc in self.processes)
         open_incidents = any(incident.status == "open" for incident in self.incidents.values())
         degraded_services = any(service.status != "running" for service in self.services.values())
@@ -648,12 +681,12 @@ class WorldSimulation:
                 "hint": "Correlate systemctl status with ss and telemetry.",
             },
         ]
-        self._objectives_cache = (self._state_revision, output)
+        self.objectives_cache = (self.state_revision, output)
         return [dict(item) for item in output]
 
     def metrics(self) -> dict[str, float | int]:
-        if self._metrics_cache and self._metrics_cache[0] == self._state_revision:
-            return dict(self._metrics_cache[1])
+        if self.metrics_cache and self.metrics_cache[0] == self.state_revision:
+            return dict(self.metrics_cache[1])
         open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
         contained_incidents = sum(1 for incident in self.incidents.values() if incident.status == "contained")
         hidden_malware = sum(1 for proc in self.processes if proc.malicious and proc.hidden)
@@ -671,7 +704,7 @@ class WorldSimulation:
             "linux_training_completed": len(self.completed_training),
             "linux_training_total": len(self.training_modules),
         }
-        self._metrics_cache = (self._state_revision, metrics_result)
+        self.metrics_cache = (self.state_revision, metrics_result)
         return dict(metrics_result)
 
     def get_avatar_traces(self, host: str | None = None) -> list[dict]:
@@ -751,6 +784,7 @@ class WorldSimulation:
             "online_sessions": list(self.online_sessions),
             "skills": dict(self.skills),
             "dialogue_scripts": {k: list(v) for k, v in self.dialogue_scripts.items()},
+            "forensic_records": [dict(item) for item in self.forensic_records],
             "training_modules": [dict(item) for item in self.training_modules],
             "completed_training": list(self.completed_training),
             "host_states": {k: dict(v) for k, v in self.host_states.items()},
@@ -785,6 +819,7 @@ class WorldSimulation:
             _default_skills(),
         )
         world.dialogue_scripts = data.get("dialogue_scripts", {})
+        world.forensic_records = data.get("forensic_records", [])
         world.training_modules = data.get("training_modules", [])
         world.completed_training = data.get("completed_training", [])
         world.host_states = data.get("host_states", {})
@@ -803,9 +838,9 @@ class WorldSimulation:
             world._initialize_host_states()
         if not world.avatar_traces:
             world._seed_avatar_traces()
-        world._state_revision = 0
-        world._objectives_cache = None
-        world._metrics_cache = None
+        world.state_revision = 0
+        world.objectives_cache = None
+        world.metrics_cache = None
         world._refresh_detections()
         world._mark_dirty()
         return world

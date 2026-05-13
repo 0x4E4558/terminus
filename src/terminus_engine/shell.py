@@ -28,6 +28,7 @@ class ShellEngine:
         "contain",
         "advance",
         "training",
+        "forensics",
         "chmod",
         "chown",
     }

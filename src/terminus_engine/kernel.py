@@ -19,6 +19,64 @@ class ExecResult:
 class VirtualKernel:
     """Routes shell command intent to virtualized subsystems."""
 
+    _CORE_ADMIN_COMMANDS = [
+        "pwd",
+        "ls",
+        "cd",
+        "cat",
+        "mkdir",
+        "touch",
+        "cp",
+        "mv",
+        "rm",
+        "grep",
+        "echo",
+        "whoami",
+        "uname",
+        "id",
+        "date",
+        "head",
+        "tail",
+        "wc",
+        "find",
+        "chmod",
+        "chown",
+        "df",
+        "du",
+        "free",
+    ]
+    _SIMULATION_COMMANDS = [
+        "help",
+        "regions",
+        "hosts",
+        "factions",
+        "npcs",
+        "travel",
+        "ps",
+        "kill",
+        "systemctl",
+        "ss",
+        "authlog",
+        "logs",
+        "telemetry",
+        "incidents",
+        "malware",
+        "contain",
+        "teams",
+        "events",
+        "siem",
+        "edr",
+        "brief",
+        "objectives",
+        "metrics",
+        "dialogue",
+        "state",
+        "avatar",
+        "advance",
+        "training",
+        "forensics",
+    ]
+
     def __init__(self, vfs: VirtualFilesystem | None = None, world: WorldSimulation | None = None) -> None:
         self.vfs = vfs or VirtualFilesystem()
         self.world = world or WorldSimulation()
@@ -85,6 +143,7 @@ class VirtualKernel:
             "avatar": self._avatar,
             "advance": self._advance,
             "training": self._training,
+            "forensics": self._forensics,
         }
         handler = dispatch.get(command)
         if handler is None:
@@ -242,45 +301,36 @@ class VirtualKernel:
     def _date(self, **kwargs) -> ExecResult:
         return ExecResult(stdout=f"{datetime.now(UTC).strftime('%a %b %d %H:%M:%S UTC %Y')}\n")
 
-    def _head(self, args: list[str], flags: list[str], cwd: str, stdin: str, **kwargs) -> ExecResult:
+    def _parse_line_slice_args(self, args: list[str], flags: list[str], command_name: str) -> tuple[int, str | None]:
         line_count = 10
         file_arg: str | None = None
         if "-n" in flags:
             if not args:
-                raise ValueError("usage: head [-n N] [FILE]")
+                raise ValueError(f"usage: {command_name} [-n N] [FILE]")
             line_count = int(args[0])
             if len(args) > 1:
                 file_arg = args[1]
-        elif args and args[0] == "-n":
+            return line_count, file_arg
+        if args and args[0] == "-n":
             if len(args) < 2:
-                raise ValueError("usage: head [-n N] [FILE]")
+                raise ValueError(f"usage: {command_name} [-n N] [FILE]")
             line_count = int(args[1])
             if len(args) > 2:
                 file_arg = args[2]
-        elif args:
+            return line_count, file_arg
+        if args:
             file_arg = args[0]
+        return line_count, file_arg
+
+    def _head(self, args: list[str], flags: list[str], cwd: str, stdin: str, **kwargs) -> ExecResult:
+        line_count, file_arg = self._parse_line_slice_args(args, flags, "head")
         content = self.vfs.read_file(self.vfs.resolve_path(cwd, file_arg)) if file_arg else stdin
         lines = content.splitlines()
         output = "\n".join(lines[:line_count])
         return ExecResult(stdout=(output + "\n") if output else "")
 
     def _tail(self, args: list[str], flags: list[str], cwd: str, stdin: str, **kwargs) -> ExecResult:
-        line_count = 10
-        file_arg: str | None = None
-        if "-n" in flags:
-            if not args:
-                raise ValueError("usage: tail [-n N] [FILE]")
-            line_count = int(args[0])
-            if len(args) > 1:
-                file_arg = args[1]
-        elif args and args[0] == "-n":
-            if len(args) < 2:
-                raise ValueError("usage: tail [-n N] [FILE]")
-            line_count = int(args[1])
-            if len(args) > 2:
-                file_arg = args[2]
-        elif args:
-            file_arg = args[0]
+        line_count, file_arg = self._parse_line_slice_args(args, flags, "tail")
         content = self.vfs.read_file(self.vfs.resolve_path(cwd, file_arg)) if file_arg else stdin
         lines = content.splitlines()
         output = "\n".join(lines[-line_count:])
@@ -386,8 +436,8 @@ class VirtualKernel:
     def _help(self, **kwargs) -> ExecResult:
         return ExecResult(
             stdout=(
-                "core admin commands: pwd ls cd cat mkdir touch cp mv rm grep echo whoami uname id date head tail wc find chmod chown df du free\n"
-                "simulation commands: help regions hosts factions npcs travel ps kill systemctl ss authlog logs telemetry incidents malware contain teams events siem edr brief objectives metrics dialogue state avatar advance training\n"
+                f"core admin commands: {' '.join(self._CORE_ADMIN_COMMANDS)}\n"
+                f"simulation commands: {' '.join(self._SIMULATION_COMMANDS)}\n"
                 "all operations run against TERMINUS virtual subsystems only.\n"
             )
         )
@@ -700,7 +750,8 @@ class VirtualKernel:
             if module_id not in module_order:
                 raise ValueError(f"unknown training module: {module_id}")
             module_index = module_order.index(module_id)
-            incomplete_before = [mid for mid in module_order[:module_index] if mid not in self.world.completed_training]
+            completed_set = set(self.world.completed_training)
+            incomplete_before = [mid for mid in module_order[:module_index] if mid not in completed_set]
             if incomplete_before:
                 return ExecResult(
                     stdout=f"{module_id} pending: complete prerequisites first -> {', '.join(incomplete_before)}\n",
@@ -729,10 +780,11 @@ class VirtualKernel:
             summary = self.vfs.resolve_path("/home/operator/training", "system-summary.txt")
             if not self.vfs.exists(summary):
                 return False, "system-summary.txt not found; capture systemctl status sshd output"
+            node = self.vfs.get_node(summary)
             content = self.vfs.read_file(summary).lower()
-            if "sshd" in content and "running" in content:
+            if "sshd" in content and "running" in content and node.mode == "640" and node.owner == "root":
                 return True, "system service analysis validated"
-            return False, "system-summary.txt must include 'sshd' and 'running'"
+            return False, "system-summary.txt must include 'sshd'/'running' and be owned by root with mode 640"
         if module_id == "ANA-003":
             summary = self.vfs.resolve_path("/home/operator/training", "network-summary.txt")
             if not self.vfs.exists(summary):
@@ -752,4 +804,48 @@ class VirtualKernel:
             if "contained" in content:
                 return True, "security response and reporting validated"
             return False, "security-summary.txt must include 'contained'"
+        if module_id == "ANA-005":
+            report = self.vfs.resolve_path("/home/operator/training", "forensics-ledger.txt")
+            if not self.vfs.exists(report):
+                return False, "forensics-ledger.txt not found; run forensics export"
+            has_case_record = any("INC-GLASS-VEIL" in str(item.get("evidence_id", "")) for item in self.world.forensic_records)
+            if not has_case_record:
+                return False, "record INC-GLASS-VEIL with forensics record first"
+            content = self.vfs.read_file(report)
+            if "chain_of_custody" in content and "INC-GLASS-VEIL" in content:
+                return True, "forensic data tracking and export validated"
+            return False, "ledger must include chain_of_custody and INC-GLASS-VEIL entries"
         raise ValueError(f"unknown training module: {module_id}")
+
+    def _forensics(self, args: list[str], env: dict[str, str], cwd: str, **kwargs) -> ExecResult:
+        mode = args[0] if args else "log"
+        if mode == "log":
+            rows = self.world.forensic_records
+            if not rows:
+                return ExecResult(stdout="no forensic records\n")
+            lines = [
+                f"{item['ts']} host={item['host']} evidence={item['evidence_id']} source={item['source']} analyst={item['analyst']} notes={item['notes']}"
+                for item in rows
+            ]
+            return ExecResult(stdout="\n".join(lines) + "\n")
+        if mode == "record":
+            if len(args) < 4:
+                raise ValueError("usage: forensics record EVIDENCE_ID SOURCE NOTES...")
+            evidence_id = args[1]
+            source = args[2]
+            notes = " ".join(args[3:])
+            analyst = env.get("USER", "operator")
+            record = self.world.add_forensic_record(evidence_id=evidence_id, source=source, analyst=analyst, notes=notes)
+            return ExecResult(stdout=f"recorded evidence={record['evidence_id']} source={record['source']}\n")
+        if mode == "export":
+            target = args[1] if len(args) > 1 else "/home/operator/training/forensics-ledger.txt"
+            path = self.vfs.resolve_path(cwd, target)
+            lines = [
+                f"{item['ts']} evidence={item['evidence_id']} source={item['source']} analyst={item['analyst']} notes={item['notes']}"
+                for item in self.world.forensic_records
+            ]
+            if not lines:
+                lines = ["no forensic records"]
+            self.vfs.write_file(path, "\n".join(lines) + "\n")
+            return ExecResult(stdout=f"forensic ledger exported -> {path}\n")
+        raise ValueError("usage: forensics [log|record EVIDENCE_ID SOURCE NOTES...|export [FILE]]")

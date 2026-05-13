@@ -236,6 +236,8 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ANA-001 complete", stage1)
 
         await shell.handle_line("systemctl status sshd > system-summary.txt")
+        await shell.handle_line("chmod 640 system-summary.txt")
+        await shell.handle_line("chown root:operators system-summary.txt")
         stage2 = await shell.handle_line("training check ANA-002")
         self.assertIn("ANA-002 complete", stage2)
 
@@ -247,6 +249,14 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         await shell.handle_line("incidents show INC-GLASS-VEIL > security-summary.txt")
         stage4 = await shell.handle_line("training check ANA-004")
         self.assertIn("ANA-004 complete", stage4)
+
+        await shell.handle_line("forensics record INC-GLASS-VEIL logs chain_of_custody")
+        await shell.handle_line("forensics export /home/operator/training/forensics-ledger.txt")
+        stage5 = await shell.handle_line("training check ANA-005")
+        self.assertIn("ANA-005 complete", stage5)
+
+        forensic_log = await shell.handle_line("forensics log")
+        self.assertIn("INC-GLASS-VEIL", forensic_log)
 
         done = await shell.handle_line("training next")
         self.assertIn("all foundational linux modules completed", done)
