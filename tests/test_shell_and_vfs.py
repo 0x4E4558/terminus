@@ -104,6 +104,31 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("status=contained", after)
         self.assertIn("exfiltration=False", after)
 
+    async def test_dialogue_brief_objectives_and_metrics_commands(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        dialogue = await shell.handle_line("dialogue system")
+        self.assertIn("ANOMALY CONFIRMED", dialogue)
+        self.assertIn("OPEN INCIDENTS", dialogue)
+
+        brief = await shell.handle_line("brief")
+        self.assertIn("open_incidents=", brief)
+        self.assertIn("learning_index=", brief)
+
+        objectives = await shell.handle_line("objectives")
+        self.assertIn("OBJ-RECON-001", objectives)
+        self.assertIn("[ ]", objectives)
+
+        metrics_before = await shell.handle_line("metrics")
+        self.assertIn("open_incidents=2", metrics_before)
+        self.assertIn("skills:", metrics_before)
+
+        await shell.handle_line("contain INC-GLASS-VEIL")
+        metrics_after = await shell.handle_line("metrics")
+        self.assertIn("contained_incidents=1", metrics_after)
+        self.assertIn("incident_response=", metrics_after)
+
     def test_persistence_load_state_supports_legacy_and_v2(self) -> None:
         with TemporaryDirectory() as tmp:
             state_file = Path(tmp) / "state.json"

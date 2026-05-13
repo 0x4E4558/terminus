@@ -63,6 +63,10 @@ class VirtualKernel:
             "events": self._events,
             "siem": self._siem,
             "edr": self._edr,
+            "brief": self._brief,
+            "objectives": self._objectives,
+            "metrics": self._metrics,
+            "dialogue": self._dialogue,
         }
         handler = dispatch.get(command)
         if handler is None:
@@ -205,6 +209,7 @@ class VirtualKernel:
         return ExecResult(
             stdout=(
                 "virtual commands: pwd ls cd cat mkdir touch cp mv rm grep echo help regions hosts factions npcs travel ps kill systemctl ss authlog logs telemetry incidents malware contain teams events siem edr\n"
+                "simulation commands: brief objectives metrics dialogue\n"
                 "all operations run against TERMINUS virtual subsystems only.\n"
             )
         )
@@ -406,3 +411,35 @@ class VirtualKernel:
             ]
             return ExecResult(stdout=("\n".join(lines) + "\n") if lines else "no suspicious processes\n")
         raise ValueError("usage: edr [status|hunt]")
+
+    def _brief(self, **kwargs) -> ExecResult:
+        metrics = self.world.metrics()
+        lines = [
+            f"ANOMALY CONFIRMED: host={self.world.current_host} region={self.world.current_region}",
+            f"open_incidents={metrics['open_incidents']} contained_incidents={metrics['contained_incidents']} detections={metrics['detections']}",
+            f"hidden_malware={metrics['hidden_malware']} services={metrics['running_services']}/{metrics['total_services']} learning_index={metrics['learning_index']}",
+            "Use objectives, incidents show <id>, logs, telemetry, and dialogue <channel> to plan response.",
+        ]
+        return ExecResult(stdout="\n".join(lines) + "\n")
+
+    def _objectives(self, **kwargs) -> ExecResult:
+        lines = []
+        for objective in self.world.objectives():
+            marker = "[x]" if objective["status"] == "complete" else "[ ]"
+            lines.append(f"{marker} {objective['id']} {objective['title']} :: {objective['hint']}")
+        return ExecResult(stdout=("\n".join(lines) + "\n") if lines else "")
+
+    def _metrics(self, **kwargs) -> ExecResult:
+        metrics = self.world.metrics()
+        skills = ", ".join(f"{name}={value}" for name, value in sorted(self.world.skills.items()))
+        lines = [f"{key}={value}" for key, value in metrics.items()]
+        lines.append(f"skills: {skills}")
+        return ExecResult(stdout="\n".join(lines) + "\n")
+
+    def _dialogue(self, args: list[str], **kwargs) -> ExecResult:
+        if not args:
+            channels = ", ".join(sorted(self.world.dialogue_scripts.keys()))
+            return ExecResult(stdout=f"available dialogue channels: {channels}\nusage: dialogue <channel>\n")
+        speaker = args[0]
+        lines = self.world.get_dialogue(speaker)
+        return ExecResult(stdout="\n".join(lines) + "\n")

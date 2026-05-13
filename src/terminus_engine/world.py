@@ -8,6 +8,40 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _default_skills() -> dict[str, int]:
+    return {
+        "shell_fluency": 1,
+        "forensics": 1,
+        "networking": 1,
+        "incident_response": 1,
+    }
+
+
+def _default_dialogue_scripts() -> dict[str, list[str]]:
+    return {
+        "system": [
+            "ANOMALY CONFIRMED: shell telemetry drift detected across relay sectors.",
+            "SOC BRIEF: Investigate evidence before issuing containment orders.",
+        ],
+        "rust": [
+            "Scrap logs never lie, operator. Start with authlog before touching services.",
+            "If you contain too early, you bury the trail with your own noise.",
+        ],
+        "cinder": [
+            "Forge-hub relays are unstable. Check sockets and service state together.",
+            "Degraded backups usually follow process tampering, not hardware faults.",
+        ],
+        "choirmaster": [
+            "Traffic harmonics broke in region3. DNS spikes are a chorus, not a solo.",
+            "Correlate telemetry with incidents or you'll chase false positives all night.",
+        ],
+        "veil": [
+            "Hidden processes survive where defenders only read the obvious dashboards.",
+            "Every containment leaves residue. Logs will remember what operators miss.",
+        ],
+    }
+
+
 @dataclass(slots=True)
 class ProcessEntry:
     pid: int
@@ -109,6 +143,8 @@ class WorldSimulation:
     rules: dict[str, DetectionRule] = field(default_factory=dict)
     detections: list[DetectionHit] = field(default_factory=list)
     online_sessions: list[str] = field(default_factory=lambda: ["operator"])
+    skills: dict[str, int] = field(default_factory=dict)
+    dialogue_scripts: dict[str, list[str]] = field(default_factory=dict)
     next_pid: int = 240
 
     def __post_init__(self) -> None:
@@ -225,6 +261,8 @@ class WorldSimulation:
             "detect-hidden-proc": DetectionRule("detect-hidden-proc", "hidden_process", "critical"),
             "detect-auth-bruteforce": DetectionRule("detect-auth-bruteforce", "failed_login", "medium"),
         }
+        self.skills = _default_skills()
+        self.dialogue_scripts = _default_dialogue_scripts()
         self._refresh_detections()
 
     def _refresh_detections(self) -> None:
@@ -266,11 +304,17 @@ class WorldSimulation:
     def kill(self, pid: int) -> bool:
         for idx, proc in enumerate(self.processes):
             if proc.pid == pid:
+                was_malicious = proc.malicious
+                was_hidden = proc.hidden
                 del self.processes[idx]
                 for svc in self.services.values():
                     if svc.pid == pid:
                         svc.status = "stopped"
                         svc.pid = None
+                if was_malicious:
+                    self.skills["incident_response"] = self.skills.get("incident_response", 1) + 1
+                if was_hidden:
+                    self.skills["forensics"] = self.skills.get("forensics", 1) + 1
                 self.log_events.append(
                     {"ts": _now(), "host": self.current_host, "source": "kernel", "severity": "info", "message": f"pid {pid} terminated"}
                 )
@@ -313,7 +357,69 @@ class WorldSimulation:
             {"ts": _now(), "host": incident.host, "source": "response", "severity": "warning", "message": f"{incident_id} containment initiated"}
         )
         self.telemetry.append({"ts": _now(), "host": incident.host, "metric": "containment", "value": 1.0, "tags": ["incident", incident_id]})
+        self.skills["incident_response"] = self.skills.get("incident_response", 1) + 1
+        self.skills["forensics"] = self.skills.get("forensics", 1) + 1
         self._refresh_detections()
+
+    def get_dialogue(self, speaker: str) -> list[str]:
+        key = speaker.lower()
+        lines = self.dialogue_scripts.get(key)
+        if lines is None:
+            raise ValueError(f"unknown dialogue channel: {speaker}")
+        output = list(lines)
+        open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
+        if key == "system":
+            output.append(f"ACTIVE HOST: {self.current_host} | OPEN INCIDENTS: {open_incidents} | DETECTIONS: {len(self.detections)}")
+        if key != "system" and open_incidents > 0:
+            output.append(f"{key}: {open_incidents} unresolved incidents still shaping the sector.")
+        if "INC-GLASS-VEIL" in self.incidents and self.incidents["INC-GLASS-VEIL"].status == "contained":
+            output.append("Glass Veil containment acknowledged. Continue hunting for residual persistence.")
+        return output
+
+    def objectives(self) -> list[dict[str, str]]:
+        hidden_malware = any(proc.malicious and proc.hidden for proc in self.processes)
+        open_incidents = any(incident.status == "open" for incident in self.incidents.values())
+        degraded_services = any(service.status != "running" for service in self.services.values())
+        return [
+            {
+                "id": "OBJ-RECON-001",
+                "status": "open" if hidden_malware else "complete",
+                "title": "Identify stealth malware process paths",
+                "hint": "Use ps -A, edr hunt, and telemetry correlation.",
+            },
+            {
+                "id": "OBJ-CONTAIN-002",
+                "status": "open" if open_incidents else "complete",
+                "title": "Contain active incidents without erasing evidence",
+                "hint": "Review incidents show, authlog, and logs before contain.",
+            },
+            {
+                "id": "OBJ-RESTORE-003",
+                "status": "open" if degraded_services else "complete",
+                "title": "Restore degraded services and verify sockets",
+                "hint": "Correlate systemctl status with ss and telemetry.",
+            },
+        ]
+
+    def metrics(self) -> dict[str, float | int]:
+        open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
+        contained_incidents = sum(1 for incident in self.incidents.values() if incident.status == "contained")
+        hidden_malware = sum(1 for proc in self.processes if proc.malicious and proc.hidden)
+        running_services = sum(1 for service in self.services.values() if service.status == "running")
+        avg_skill = (
+            sum(self.skills.values()) / len(self.skills)
+            if self.skills
+            else 1.0
+        )
+        return {
+            "open_incidents": open_incidents,
+            "contained_incidents": contained_incidents,
+            "detections": len(self.detections),
+            "hidden_malware": hidden_malware,
+            "running_services": running_services,
+            "total_services": len(self.services),
+            "learning_index": round(avg_skill, 2),
+        }
 
     def to_dict(self) -> dict:
         return {
@@ -335,6 +441,8 @@ class WorldSimulation:
             "rules": {k: asdict(v) for k, v in self.rules.items()},
             "detections": [asdict(d) for d in self.detections],
             "online_sessions": list(self.online_sessions),
+            "skills": dict(self.skills),
+            "dialogue_scripts": {k: list(v) for k, v in self.dialogue_scripts.items()},
             "next_pid": self.next_pid,
         }
 
@@ -359,8 +467,17 @@ class WorldSimulation:
         world.rules = {k: DetectionRule(**v) for k, v in data.get("rules", {}).items()}
         world.detections = [DetectionHit(**item) for item in data.get("detections", [])]
         world.online_sessions = data.get("online_sessions", ["operator"])
+        world.skills = data.get(
+            "skills",
+            _default_skills(),
+        )
+        world.dialogue_scripts = data.get("dialogue_scripts", {})
         world.next_pid = data.get("next_pid", 240)
         if not world.regions:
             world._seed()
+        if not world.dialogue_scripts:
+            world.dialogue_scripts = _default_dialogue_scripts()
+        if not world.skills:
+            world.skills = _default_skills()
         world._refresh_detections()
         return world
