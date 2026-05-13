@@ -146,7 +146,13 @@ class WorldSimulation:
     online_sessions: list[str] = field(default_factory=lambda: ["operator"])
     skills: dict[str, int] = field(default_factory=dict)
     dialogue_scripts: dict[str, list[str]] = field(default_factory=dict)
+    host_states: dict[str, dict] = field(default_factory=dict)
+    avatar_traces: list[dict] = field(default_factory=list)
+    world_tick: int = 0
     next_pid: int = 240
+    _state_revision: int = 0
+    _objectives_cache: tuple[int, list[dict[str, str]]] | None = None
+    _metrics_cache: tuple[int, dict[str, float | int]] | None = None
 
     def __post_init__(self) -> None:
         if not self.regions:
@@ -293,7 +299,68 @@ class WorldSimulation:
         }
         self.skills = _default_skills()
         self.dialogue_scripts = _default_dialogue_scripts()
+        self._initialize_host_states()
+        self._seed_avatar_traces()
         self._refresh_detections()
+        self._mark_dirty()
+
+    def _mark_dirty(self) -> None:
+        self._state_revision += 1
+        self._objectives_cache = None
+        self._metrics_cache = None
+
+    def _initialize_host_states(self) -> None:
+        self.host_states = {}
+        for host, info in self.hosts.items():
+            base_stability = 95 if info.get("os") == "windows" else 100
+            self.host_states[host] = {
+                "os": info.get("os", "linux"),
+                "stability": base_stability,
+                "threat_level": "low",
+                "last_updated": _now(),
+            }
+        severity_penalty = {"low": 4, "medium": 8, "high": 14, "critical": 18}
+        for incident in self.incidents.values():
+            state = self.host_states.get(incident.host)
+            if state is None:
+                continue
+            penalty = severity_penalty.get(incident.severity, 8)
+            state["stability"] = max(0, int(state["stability"]) - penalty)
+            state["threat_level"] = "high" if incident.status == "open" else state["threat_level"]
+            state["last_updated"] = _now()
+        for process in self.processes:
+            if process.malicious:
+                state = self.host_states.get(process.host)
+                if state is None:
+                    continue
+                state["stability"] = max(0, int(state["stability"]) - (4 if process.hidden else 2))
+                state["threat_level"] = "high" if process.hidden else "medium"
+                state["last_updated"] = _now()
+
+    def _seed_avatar_traces(self) -> None:
+        self.avatar_traces = [
+            {
+                "host": "citadel-ad",
+                "artifact": "C:\\Users\\Operator\\AppData\\Roaming\\0x4E4558\\avatar.dat",
+                "confidence": "high",
+                "linked_incident": "INC-CITADEL-DUSK",
+                "ts": _now(),
+            },
+            {
+                "host": "ops-win10",
+                "artifact": "HKCU\\Software\\0x4E4558\\AvatarHash",
+                "confidence": "medium",
+                "linked_incident": "INC-CITADEL-DUSK",
+                "ts": _now(),
+            },
+            {
+                "host": "archive-vault",
+                "artifact": "/archives/avatars/0x4E4558.sig",
+                "confidence": "medium",
+                "linked_incident": "INC-GLASS-VEIL",
+                "ts": _now(),
+            },
+        ]
 
     def _refresh_detections(self) -> None:
         self.detections = []
@@ -329,6 +396,10 @@ class WorldSimulation:
             raise ValueError(f"host transition blocked: {self.current_host} -> {destination}")
         self.current_host = destination
         self.current_region = self.hosts[destination]["region"]
+        state = self.host_states.get(destination)
+        if state is not None:
+            state["last_updated"] = _now()
+        self._mark_dirty()
         return destination
 
     def kill(self, pid: int) -> bool:
@@ -348,6 +419,12 @@ class WorldSimulation:
                 self.log_events.append(
                     {"ts": _now(), "host": self.current_host, "source": "kernel", "severity": "info", "message": f"pid {pid} terminated"}
                 )
+                state = self.host_states.get(proc.host)
+                if state is not None:
+                    state["stability"] = min(100, int(state["stability"]) + 3)
+                    state["threat_level"] = "medium" if state["stability"] < 85 else "low"
+                    state["last_updated"] = _now()
+                self._mark_dirty()
                 return True
         return False
 
@@ -374,6 +451,16 @@ class WorldSimulation:
         self.log_events.append(
             {"ts": _now(), "host": svc.host, "source": "systemctl", "severity": "info", "message": f"{svc.name} {action}"}
         )
+        state = self.host_states.get(svc.host)
+        if state is not None:
+            if action in {"stop"}:
+                state["stability"] = max(0, int(state["stability"]) - 5)
+                state["threat_level"] = "medium" if state["stability"] >= 65 else "high"
+            else:
+                state["stability"] = min(100, int(state["stability"]) + 2)
+                state["threat_level"] = "low" if state["stability"] >= 85 else "medium"
+            state["last_updated"] = _now()
+        self._mark_dirty()
 
     def contain_incident(self, incident_id: str) -> None:
         incident = self.incidents.get(incident_id)
@@ -389,7 +476,13 @@ class WorldSimulation:
         self.telemetry.append({"ts": _now(), "host": incident.host, "metric": "containment", "value": 1.0, "tags": ["incident", incident_id]})
         self.increment_skill("incident_response")
         self.increment_skill("forensics")
+        state = self.host_states.get(incident.host)
+        if state is not None:
+            state["stability"] = min(100, int(state["stability"]) + 8)
+            state["threat_level"] = "medium" if state["stability"] < 85 else "low"
+            state["last_updated"] = _now()
         self._refresh_detections()
+        self._mark_dirty()
 
     def get_dialogue(self, speaker: str) -> list[str]:
         speaker_key = speaker.lower()
@@ -410,6 +503,7 @@ class WorldSimulation:
 
     def increment_skill(self, skill_name: str, amount: int = 1) -> None:
         self.skills[skill_name] = self.skills.get(skill_name, 0) + amount
+        self._mark_dirty()
 
     def average_skill_level(self) -> float:
         if not self.skills:
@@ -417,10 +511,12 @@ class WorldSimulation:
         return sum(self.skills.values()) / len(self.skills)
 
     def objectives(self) -> list[dict[str, str]]:
+        if self._objectives_cache and self._objectives_cache[0] == self._state_revision:
+            return [dict(item) for item in self._objectives_cache[1]]
         hidden_malware = any(proc.malicious and proc.hidden for proc in self.processes)
         open_incidents = any(incident.status == "open" for incident in self.incidents.values())
         degraded_services = any(service.status != "running" for service in self.services.values())
-        return [
+        output = [
             {
                 "id": "OBJ-RECON-001",
                 "status": "open" if hidden_malware else "complete",
@@ -440,14 +536,18 @@ class WorldSimulation:
                 "hint": "Correlate systemctl status with ss and telemetry.",
             },
         ]
+        self._objectives_cache = (self._state_revision, output)
+        return [dict(item) for item in output]
 
     def metrics(self) -> dict[str, float | int]:
+        if self._metrics_cache and self._metrics_cache[0] == self._state_revision:
+            return dict(self._metrics_cache[1])
         open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
         contained_incidents = sum(1 for incident in self.incidents.values() if incident.status == "contained")
         hidden_malware = sum(1 for proc in self.processes if proc.malicious and proc.hidden)
         running_services = sum(1 for service in self.services.values() if service.status == "running")
         avg_skill = self.average_skill_level()
-        return {
+        result: dict[str, float | int] = {
             "open_incidents": open_incidents,
             "contained_incidents": contained_incidents,
             "detections": len(self.detections),
@@ -455,7 +555,65 @@ class WorldSimulation:
             "running_services": running_services,
             "total_services": len(self.services),
             "learning_index": round(avg_skill, 2),
+            "world_tick": self.world_tick,
         }
+        self._metrics_cache = (self._state_revision, result)
+        return dict(result)
+
+    def get_avatar_traces(self, host: str | None = None) -> list[dict]:
+        if host is None:
+            return [dict(item) for item in self.avatar_traces]
+        return [dict(item) for item in self.avatar_traces if item.get("host") == host]
+
+    def state_snapshot(self, host: str | None = None) -> dict:
+        hosts = self.host_states if host is None else {host: self.host_states.get(host, {})}
+        hosts = {name: dict(data) for name, data in hosts.items() if data}
+        return {
+            "world_tick": self.world_tick,
+            "current_region": self.current_region,
+            "current_host": self.current_host,
+            "hosts": hosts,
+        }
+
+    def advance_world(self, cycles: int = 1) -> None:
+        if cycles < 1:
+            raise ValueError("cycles must be >= 1")
+        for _ in range(cycles):
+            self.world_tick += 1
+            for incident in self.incidents.values():
+                state = self.host_states.get(incident.host)
+                if state is None:
+                    continue
+                if incident.status == "open":
+                    penalty = 4 if incident.severity == "high" else 2
+                    state["stability"] = max(0, int(state["stability"]) - penalty)
+                    state["threat_level"] = "high" if state["stability"] < 80 else "medium"
+                    if incident.exfiltration:
+                        self.telemetry.append(
+                            {
+                                "ts": _now(),
+                                "host": incident.host,
+                                "metric": "data_egress_risk",
+                                "value": 1.0,
+                                "tags": ["incident", incident.incident_id],
+                            }
+                        )
+                else:
+                    state["stability"] = min(100, int(state["stability"]) + 1)
+                    state["threat_level"] = "low" if state["stability"] >= 85 else "medium"
+                state["last_updated"] = _now()
+            if self.hosts.get(self.current_host, {}).get("os") == "windows":
+                self.log_events.append(
+                    {
+                        "ts": _now(),
+                        "host": self.current_host,
+                        "source": "avatar",
+                        "severity": "info",
+                        "message": "0x4E4558 avatar continuity marker observed in host artifacts",
+                    }
+                )
+        self._refresh_detections()
+        self._mark_dirty()
 
     def to_dict(self) -> dict:
         return {
@@ -479,6 +637,9 @@ class WorldSimulation:
             "online_sessions": list(self.online_sessions),
             "skills": dict(self.skills),
             "dialogue_scripts": {k: list(v) for k, v in self.dialogue_scripts.items()},
+            "host_states": {k: dict(v) for k, v in self.host_states.items()},
+            "avatar_traces": [dict(item) for item in self.avatar_traces],
+            "world_tick": self.world_tick,
             "next_pid": self.next_pid,
         }
 
@@ -508,6 +669,9 @@ class WorldSimulation:
             _default_skills(),
         )
         world.dialogue_scripts = data.get("dialogue_scripts", {})
+        world.host_states = data.get("host_states", {})
+        world.avatar_traces = data.get("avatar_traces", [])
+        world.world_tick = data.get("world_tick", 0)
         world.next_pid = data.get("next_pid", 240)
         if not world.regions:
             world._seed()
@@ -515,5 +679,13 @@ class WorldSimulation:
             world.dialogue_scripts = _default_dialogue_scripts()
         if not world.skills:
             world.skills = _default_skills()
+        if not world.host_states:
+            world._initialize_host_states()
+        if not world.avatar_traces:
+            world._seed_avatar_traces()
+        world._state_revision = 0
+        world._objectives_cache = None
+        world._metrics_cache = None
         world._refresh_detections()
+        world._mark_dirty()
         return world

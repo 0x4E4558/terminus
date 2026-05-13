@@ -133,6 +133,27 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         metrics_after = await shell.handle_line("metrics")
         self.assertIn("contained_incidents=1", metrics_after)
         self.assertIn("incident_response=", metrics_after)
+        self.assertIn("world_tick=", metrics_after)
+
+    async def test_state_avatar_and_advance_commands(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        state_before = await shell.handle_line("state")
+        self.assertIn("world_tick=0", state_before)
+        self.assertIn("citadel-ad os=windows", state_before)
+
+        avatar = await shell.handle_line("avatar")
+        self.assertIn("0x4E4558", avatar)
+        self.assertIn("host=citadel-ad", avatar)
+
+        advanced = await shell.handle_line("advance 2")
+        self.assertIn("world advanced cycles=2", advanced)
+        self.assertIn("tick=2", advanced)
+
+        state_after = await shell.handle_line("state ghost-node")
+        self.assertIn("world_tick=2", state_after)
+        self.assertIn("ghost-node", state_after)
 
     def test_persistence_load_state_supports_legacy_and_v2(self) -> None:
         with TemporaryDirectory() as tmp:

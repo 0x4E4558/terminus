@@ -67,6 +67,9 @@ class VirtualKernel:
             "objectives": self._objectives,
             "metrics": self._metrics,
             "dialogue": self._dialogue,
+            "state": self._state,
+            "avatar": self._avatar,
+            "advance": self._advance,
         }
         handler = dispatch.get(command)
         if handler is None:
@@ -209,7 +212,7 @@ class VirtualKernel:
         return ExecResult(
             stdout=(
                 "virtual commands: pwd ls cd cat mkdir touch cp mv rm grep echo help regions hosts factions npcs travel ps kill systemctl ss authlog logs telemetry incidents malware contain teams events siem edr\n"
-                "simulation commands: brief objectives metrics dialogue\n"
+                "simulation commands: brief objectives metrics dialogue state avatar advance\n"
                 "all operations run against TERMINUS virtual subsystems only.\n"
             )
         )
@@ -443,3 +446,41 @@ class VirtualKernel:
         speaker = args[0]
         lines = self.world.get_dialogue(speaker)
         return ExecResult(stdout="\n".join(lines) + "\n")
+
+    def _state(self, args: list[str], **kwargs) -> ExecResult:
+        host = args[0] if args else None
+        snapshot = self.world.state_snapshot(host=host)
+        lines = [
+            f"world_tick={snapshot['world_tick']}",
+            f"current_region={snapshot['current_region']}",
+            f"current_host={snapshot['current_host']}",
+        ]
+        for name, data in sorted(snapshot["hosts"].items()):
+            lines.append(
+                f"{name} os={data.get('os','linux')} stability={data.get('stability',0)} threat={data.get('threat_level','unknown')} updated={data.get('last_updated','')}"
+            )
+        return ExecResult(stdout="\n".join(lines) + "\n")
+
+    def _avatar(self, args: list[str], **kwargs) -> ExecResult:
+        host = args[0] if args else None
+        traces = self.world.get_avatar_traces(host=host)
+        if not traces:
+            return ExecResult(stdout="no avatar traces\n")
+        lines = [
+            f"{item['ts']} host={item['host']} confidence={item['confidence']} incident={item['linked_incident']} artifact={item['artifact']}"
+            for item in traces
+        ]
+        return ExecResult(stdout="\n".join(lines) + "\n")
+
+    def _advance(self, args: list[str], **kwargs) -> ExecResult:
+        cycles = 1
+        if args:
+            cycles = int(args[0])
+        self.world.advance_world(cycles=cycles)
+        metrics = self.world.metrics()
+        return ExecResult(
+            stdout=(
+                f"world advanced cycles={cycles} tick={metrics['world_tick']} open_incidents={metrics['open_incidents']} "
+                f"contained_incidents={metrics['contained_incidents']}\n"
+            )
+        )
