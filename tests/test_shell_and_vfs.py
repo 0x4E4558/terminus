@@ -113,6 +113,9 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         dialogue = await shell.handle_line("dialogue system")
         self.assertIn("ANOMALY CONFIRMED", dialogue)
         self.assertIn("OPEN INCIDENTS", dialogue)
+        unknown_dialogue = await shell.handle_line("dialogue unknown-channel")
+        self.assertIn("unknown dialogue channel", unknown_dialogue)
+        self.assertIn("available channels", unknown_dialogue)
 
         brief = await shell.handle_line("brief")
         self.assertIn("open_incidents=", brief)

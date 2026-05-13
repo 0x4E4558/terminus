@@ -334,15 +334,17 @@ class WorldSimulation:
     def kill(self, pid: int) -> bool:
         for idx, proc in enumerate(self.processes):
             if proc.pid == pid:
-                if proc.malicious:
-                    self.increment_skill("incident_response")
-                if proc.hidden:
-                    self.increment_skill("forensics")
+                matched_malicious = proc.malicious
+                matched_hidden = proc.hidden
                 del self.processes[idx]
                 for svc in self.services.values():
                     if svc.pid == pid:
                         svc.status = "stopped"
                         svc.pid = None
+                if matched_malicious:
+                    self.increment_skill("incident_response")
+                if matched_hidden:
+                    self.increment_skill("forensics")
                 self.log_events.append(
                     {"ts": _now(), "host": self.current_host, "source": "kernel", "severity": "info", "message": f"pid {pid} terminated"}
                 )
