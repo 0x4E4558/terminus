@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import PurePosixPath
 import fnmatch
+import textwrap
 
 from .vfs import VFSNode, VirtualFilesystem, VFSError
 from .world import WorldSimulation
@@ -299,7 +299,7 @@ class VirtualKernel:
         return ExecResult(stdout=f"uid=1000({user}) gid=1000(operators) groups=1000(operators)\n")
 
     def _date(self, **kwargs) -> ExecResult:
-        return ExecResult(stdout=f"{datetime.now(UTC).strftime('%a %b %d %H:%M:%S UTC %Y')}\n")
+        return ExecResult(stdout=f"{self.world.simulated_datetime().strftime('%a %b %d %H:%M:%S UTC %Y')}\n")
 
     def _parse_line_slice_args(self, args: list[str], flags: list[str], command_name: str) -> tuple[int, str | None]:
         line_count = 10
@@ -374,9 +374,9 @@ class VirtualKernel:
     def _chmod(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
         if len(args) < 2:
             raise ValueError("usage: chmod MODE FILE...")
-        mode = args[0]
+        mode = args[0][1:] if len(args[0]) == 4 and args[0].startswith("0") else args[0]
         if len(mode) != 3 or any(ch not in "01234567" for ch in mode):
-            raise ValueError("mode must be octal, e.g., 644")
+            raise ValueError("mode must be octal, e.g., 644 or 0644")
         for target in args[1:]:
             path = self.vfs.resolve_path(cwd, target)
             node = self.vfs.get_node(path)
@@ -434,10 +434,22 @@ class VirtualKernel:
         return ExecResult(stdout="\n".join(lines) + "\n")
 
     def _help(self, **kwargs) -> ExecResult:
+        core_admin = textwrap.fill(
+            " ".join(self._CORE_ADMIN_COMMANDS),
+            width=88,
+            initial_indent="core admin commands: ",
+            subsequent_indent=" " * len("core admin commands: "),
+        )
+        simulation = textwrap.fill(
+            " ".join(self._SIMULATION_COMMANDS),
+            width=88,
+            initial_indent="simulation commands: ",
+            subsequent_indent=" " * len("simulation commands: "),
+        )
         return ExecResult(
             stdout=(
-                f"core admin commands: {' '.join(self._CORE_ADMIN_COMMANDS)}\n"
-                f"simulation commands: {' '.join(self._SIMULATION_COMMANDS)}\n"
+                f"{core_admin}\n"
+                f"{simulation}\n"
                 "all operations run against TERMINUS virtual subsystems only.\n"
             )
         )
@@ -716,7 +728,8 @@ class VirtualKernel:
             rows = []
             for module in self.world.training_overview():
                 marker = "[x]" if module["status"] == "complete" else "[ ]"
-                rows.append(f"{marker} {module['id']} {module['title']} :: {module['focus']}")
+                track = str(module.get("analyst_track", "general"))
+                rows.append(f"{marker} {module['id']} ({track}) {module['title']} :: {module['focus']}")
             return ExecResult(stdout=("\n".join(rows) + "\n") if rows else "no training modules\n")
         if mode == "next":
             module = self.world.next_training_module()
@@ -736,6 +749,7 @@ class VirtualKernel:
             return ExecResult(
                 stdout=(
                     f"{module['id']} {module['title']}\n"
+                    f"track: {module.get('analyst_track', 'general')}\n"
                     f"focus: {module['focus']}\n"
                     f"objective: {module['objective']}\n"
                     f"hint: {module['hint']}\n"
@@ -765,6 +779,9 @@ class VirtualKernel:
         raise ValueError("usage: training [list|next|check MODULE_ID]")
 
     def _evaluate_training_module(self, module_id: str, cwd: str) -> tuple[bool, str]:
+        module = next((item for item in self.world.training_modules if str(item.get("id")) == module_id), None)
+        if module is None:
+            raise ValueError(f"unknown training module: {module_id}")
         if module_id == "ANA-001":
             workspace = "/home/operator/training"
             if self.vfs.exists(workspace) and cwd == workspace:
@@ -772,9 +789,11 @@ class VirtualKernel:
                 if not self.vfs.exists(summary):
                     return False, "create data-summary.txt using auth_sample.log"
                 content = self.vfs.read_file(summary).lower()
-                if "failed_login" in content:
+                validation = module.get("validation", {})
+                required_token = str(validation.get("required_token", "failed_login")).lower() if isinstance(validation, dict) else "failed_login"
+                if required_token in content:
                     return True, "data triage validated from log artifacts"
-                return False, "data-summary.txt must contain 'failed_login'"
+                return False, f"data-summary.txt must contain '{required_token}'"
             return False, "create /home/operator/training and cd into it"
         if module_id == "ANA-002":
             summary = self.vfs.resolve_path("/home/operator/training", "system-summary.txt")

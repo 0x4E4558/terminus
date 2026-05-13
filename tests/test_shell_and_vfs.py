@@ -1,5 +1,6 @@
 import unittest
 import json
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -204,6 +205,9 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         await shell.handle_line("chmod 600 notes.txt")
         ls_long = await shell.handle_line("ls -l notes.txt")
         self.assertIn("rw-------", ls_long)
+        await shell.handle_line("chmod 0640 notes.txt")
+        ls_long_zero_prefixed = await shell.handle_line("ls -l notes.txt")
+        self.assertIn("rw-r-----", ls_long_zero_prefixed)
 
         await shell.handle_line("chown root:operators notes.txt")
         ls_long_after = await shell.handle_line("ls -l notes.txt")
@@ -228,6 +232,7 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
 
         training_next = await shell.handle_line("training next")
         self.assertIn("Data Analysis Foundations", training_next)
+        self.assertIn("track: data", training_next)
 
         await shell.handle_line("mkdir -p /home/operator/training")
         await shell.handle_line("cd /home/operator/training")
@@ -257,9 +262,20 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
 
         forensic_log = await shell.handle_line("forensics log")
         self.assertIn("INC-GLASS-VEIL", forensic_log)
-
         done = await shell.handle_line("training next")
         self.assertIn("all foundational linux modules completed", done)
+
+    async def test_date_uses_simulated_world_time(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        before = await shell.handle_line("date")
+        await shell.handle_line("advance 2")
+        after = await shell.handle_line("date")
+
+        before_dt = datetime.strptime(before.strip(), "%a %b %d %H:%M:%S UTC %Y")
+        after_dt = datetime.strptime(after.strip(), "%a %b %d %H:%M:%S UTC %Y")
+        self.assertEqual(int((after_dt - before_dt).total_seconds()), 120)
 
     def test_persistence_load_state_supports_legacy_and_v2(self) -> None:
         with TemporaryDirectory() as tmp:
