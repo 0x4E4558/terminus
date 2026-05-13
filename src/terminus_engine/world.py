@@ -371,9 +371,10 @@ class WorldSimulation:
         if speaker_key == "system":
             output.append(f"ACTIVE HOST: {self.current_host} | OPEN INCIDENTS: {open_incidents} | DETECTIONS: {len(self.detections)}")
         if speaker_key != "system" and open_incidents > 0:
-            output.append(f"{speaker_key}: {open_incidents} unresolved incidents still shaping the sector.")
-        if "INC-GLASS-VEIL" in self.incidents and self.incidents["INC-GLASS-VEIL"].status == "contained":
-            output.append("Glass Veil containment acknowledged. Continue hunting for residual persistence.")
+            output.append(f"{speaker}: {open_incidents} unresolved incidents still shaping the sector.")
+        contained = [incident.incident_id for incident in self.incidents.values() if incident.status == "contained"]
+        if contained:
+            output.append(f"Contained incidents acknowledged: {', '.join(contained)}. Continue hunting for residual persistence.")
         return output
 
     def increment_skill(self, skill_name: str, amount: int = 1) -> None:
