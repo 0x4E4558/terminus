@@ -1,4 +1,5 @@
 import unittest
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -116,7 +117,10 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
 
             legacy_file = Path(tmp) / "legacy.json"
             legacy = PersistenceEngine(legacy_file)
-            legacy_file.write_text('{"name":"","node_type":"dir","children":{}}', encoding="utf-8")
+            legacy_file.write_text(
+                json.dumps({"name": "", "node_type": "dir", "children": {}}),
+                encoding="utf-8",
+            )
             vfs3, world3 = legacy.load_state()
             self.assertEqual(vfs3.root.node_type, "dir")
             self.assertIn("region0", world3.regions)

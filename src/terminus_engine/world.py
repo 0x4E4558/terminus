@@ -125,16 +125,20 @@ class WorldSimulation:
         self.regions = {
             "region0": {"name": "The Crash Site", "hosts": ["crash-site"], "factions": ["salvagers"]},
             "region1": {"name": "The Salvage District", "hosts": ["forge-hub"], "factions": ["mechanists"]},
+            "region2": {"name": "The Mechanist Forge", "hosts": ["forge-core"], "factions": ["mechanists"]},
             "region3": {"name": "Club Neon", "hosts": ["neon-gateway"], "factions": ["signal-choir"]},
             "region4": {"name": "The Ghost Network", "hosts": ["ghost-node"], "factions": ["null-sect"]},
+            "region5": {"name": "The Memory Palace", "hosts": ["archive-vault"], "factions": ["salvagers"]},
             "region6": {"name": "The Epoch Core", "hosts": ["epoch-core"], "factions": ["mechanists", "signal-choir"]},
         }
         self.hosts = {
             "crash-site": {"region": "region0", "transitions": ["forge-hub", "neon-gateway"], "faction": "salvagers"},
-            "forge-hub": {"region": "region1", "transitions": ["crash-site", "epoch-core"], "faction": "mechanists"},
+            "forge-hub": {"region": "region1", "transitions": ["crash-site", "forge-core"], "faction": "mechanists"},
+            "forge-core": {"region": "region2", "transitions": ["forge-hub", "archive-vault"], "faction": "mechanists"},
             "neon-gateway": {"region": "region3", "transitions": ["crash-site", "ghost-node"], "faction": "signal-choir"},
-            "ghost-node": {"region": "region4", "transitions": ["neon-gateway"], "faction": "null-sect"},
-            "epoch-core": {"region": "region6", "transitions": ["forge-hub"], "faction": "mechanists"},
+            "ghost-node": {"region": "region4", "transitions": ["neon-gateway", "epoch-core"], "faction": "null-sect"},
+            "archive-vault": {"region": "region5", "transitions": ["forge-core", "epoch-core"], "faction": "salvagers"},
+            "epoch-core": {"region": "region6", "transitions": ["archive-vault", "ghost-node"], "faction": "mechanists"},
         }
         self.npcs = {
             "rust": {"role": "salvage handler", "faction": "salvagers", "region": "region0"},
