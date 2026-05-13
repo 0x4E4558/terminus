@@ -45,7 +45,8 @@ class TerminusServer:
         self.auth_user = auth_user
         self.auth_password = auth_password
         self.persistence = PersistenceEngine(Path(state_file))
-        self.kernel = VirtualKernel(self.persistence.load_vfs())
+        vfs, world = self.persistence.load_state()
+        self.kernel = VirtualKernel(vfs=vfs, world=world)
         self.renderer = TerminalRenderer()
         self.sessions = SessionManager()
         self._listener: asyncssh.SSHAcceptor | None = None
@@ -79,7 +80,7 @@ class TerminusServer:
         shell = ShellEngine(
             self.kernel,
             session,
-            on_state_change=lambda: self.persistence.save_vfs(self.kernel.vfs),
+            on_state_change=lambda: self.persistence.save_state(self.kernel.vfs, self.kernel.world),
         )
         process.stdout.write(self.renderer.banner())
         process.stdout.write(self.renderer.prompt(session))
@@ -96,7 +97,7 @@ class TerminusServer:
         self.sessions.drop(session.session_id)
 
     async def stop(self) -> None:
-        self.persistence.save_vfs(self.kernel.vfs)
+        self.persistence.save_state(self.kernel.vfs, self.kernel.world)
         if self._listener:
             self._listener.close()
             await self._listener.wait_closed()
