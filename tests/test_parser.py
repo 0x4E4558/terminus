@@ -17,6 +17,11 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(commands[1].redirects[0].operator, ">")
         self.assertEqual(commands[1].redirects[0].target, "/tmp/out")
 
+    def test_reject_background_operator(self) -> None:
+        parser = ParserEngine()
+        with self.assertRaisesRegex(ValueError, "not supported"):
+            parser.parse("echo hi &")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -63,6 +63,8 @@ class ParserEngine:
             if tok in {"&", "|"} and i + 1 < len(tokens) and tokens[i + 1] == tok:
                 tok = tok + tok
                 i += 1
+            elif tok == "&":
+                raise ParseError("background execution '&' is not supported")
             if tok in self._CHAIN_OPS:
                 if not current:
                     raise ParseError(f"unexpected chain operator: {tok}")
@@ -101,7 +103,7 @@ class ParserEngine:
         env: dict[str, str] = {}
         i = 0
         while i < len(tokens):
-            if "=" in tokens[i] and not tokens[i].startswith("-") and tokens[i].index("=") > 0:
+            if "=" in tokens[i] and not tokens[i].startswith("-") and not tokens[i].startswith("="):
                 k, v = tokens[i].split("=", 1)
                 env[k] = v
                 i += 1

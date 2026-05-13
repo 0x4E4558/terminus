@@ -57,7 +57,7 @@ class TerminusServer:
             host_key_path = Path(".terminus/ssh_host_key")
         host_key_path.parent.mkdir(parents=True, exist_ok=True)
         if not host_key_path.exists():
-            key = asyncssh.generate_private_key("ssh-rsa")
+            key = asyncssh.generate_private_key("ssh-ed25519")
             key.write_private_key(str(host_key_path))
         return str(host_key_path)
 

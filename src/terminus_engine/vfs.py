@@ -33,8 +33,11 @@ class VFSError(RuntimeError):
 
 
 class VirtualFilesystem:
+    DEFAULT_DIR_MODE = "755"
+    DEFAULT_FILE_MODE = "644"
+
     def __init__(self) -> None:
-        self.root = VFSNode(name="", node_type="dir", mode="755")
+        self.root = VFSNode(name="", node_type="dir", mode=self.DEFAULT_DIR_MODE)
         self._seed_world()
 
     def _seed_world(self) -> None:
@@ -57,6 +60,12 @@ class VirtualFilesystem:
         self.write_file("/var/log/auth.log", "failed_login user=unknown src=10.0.9.7\n")
 
     def resolve_path(self, cwd: str, path: str) -> str:
+        """Resolve path against cwd using POSIX-like normalization.
+
+        Relative paths are anchored to `cwd`, absolute paths are preserved,
+        `.` segments are removed, `..` segments pop one level when possible,
+        and traversal above root remains pinned at `/`.
+        """
         candidate = PurePosixPath(path)
         if not candidate.is_absolute():
             candidate = PurePosixPath(cwd) / candidate
@@ -114,7 +123,12 @@ class VirtualFilesystem:
             if child is None:
                 if not parents and not last:
                     raise FileNotFoundError(abs_path)
-                child = VFSNode(name=part, node_type="dir", mode="755", hidden=part.startswith("."))
+                child = VFSNode(
+                    name=part,
+                    node_type="dir",
+                    mode=self.DEFAULT_DIR_MODE,
+                    hidden=part.startswith("."),
+                )
                 node.children[part] = child
                 node.touch()
             elif child.node_type != "dir":
@@ -143,7 +157,12 @@ class VirtualFilesystem:
             raise VFSError(f"not a directory: {str(PurePosixPath(abs_path).parent)}")
         node = parent.children.get(name)
         if node is None:
-            node = VFSNode(name=name, node_type="file", mode="644", hidden=name.startswith("."))
+            node = VFSNode(
+                name=name,
+                node_type="file",
+                mode=self.DEFAULT_FILE_MODE,
+                hidden=name.startswith("."),
+            )
             parent.children[name] = node
         if node.node_type != "file":
             raise VFSError(f"not a file: {abs_path}")

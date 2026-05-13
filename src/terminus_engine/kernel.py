@@ -62,11 +62,26 @@ class VirtualKernel:
         nodes = self.vfs.list_dir(path, include_hidden=include_hidden)
         if long:
             lines = [
-                f"{n.node_type[0]}rw-r--r-- {n.owner} {n.group} {len(n.content)} {n.modified_at} {n.name}"
+                f"{n.node_type[0]}{self._mode_to_rwx(n.mode)} {n.owner} {n.group} {len(n.content)} {n.modified_at} {n.name}"
                 for n in nodes
             ]
             return ExecResult(stdout=("\n".join(lines) + "\n") if lines else "")
         return ExecResult(stdout=("  ".join(n.name for n in nodes) + "\n") if nodes else "")
+
+    def _mode_to_rwx(self, mode: str) -> str:
+        mapping = {
+            "0": "---",
+            "1": "--x",
+            "2": "-w-",
+            "3": "-wx",
+            "4": "r--",
+            "5": "r-x",
+            "6": "rw-",
+            "7": "rwx",
+        }
+        if len(mode) != 3 or any(ch not in mapping for ch in mode):
+            return "rw-r--r--"
+        return "".join(mapping[ch] for ch in mode)
 
     def _cd(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
         target = args[0] if args else "/home/operator"

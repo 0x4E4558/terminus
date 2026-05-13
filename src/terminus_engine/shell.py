@@ -164,6 +164,7 @@ class ShellEngine:
 
     def _expand(self, token: str, env: dict[str, str]) -> str:
         result = token
-        for key, value in env.items():
+        for key in sorted(env.keys(), key=len, reverse=True):
+            value = env[key]
             result = result.replace(f"${key}", value)
         return result
