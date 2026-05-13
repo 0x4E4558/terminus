@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import shlex
+from typing import Callable
 
 from .kernel import ExecResult, VirtualKernel
 from .parser import ChainNode, CommandNode, ParserEngine
@@ -13,10 +15,18 @@ class ShellSession:
 
 
 class ShellEngine:
-    def __init__(self, kernel: VirtualKernel, session: SessionState) -> None:
+    _MUTATING_COMMANDS = {"mkdir", "touch", "cp", "mv", "rm"}
+
+    def __init__(
+        self,
+        kernel: VirtualKernel,
+        session: SessionState,
+        on_state_change: Callable[[], None] | None = None,
+    ) -> None:
         self.kernel = kernel
         self.parser = ParserEngine()
         self.session = ShellSession(state=session)
+        self.on_state_change = on_state_change
 
     async def handle_line(self, line: str) -> str:
         stripped = line.strip()
@@ -25,9 +35,62 @@ class ShellEngine:
         self.session.state.history.append(stripped)
         if stripped in {"exit", "logout"}:
             return "__TERMINATE__"
+        if stripped == "history":
+            return self._history_output()
+        if stripped == "env":
+            return "".join(f"{k}={v}\n" for k, v in sorted(self.session.state.env.items()))
+        if stripped.startswith("alias"):
+            return self._handle_alias(stripped)
+        if stripped.startswith("export "):
+            return self._handle_export(stripped)
         ast = self.parser.parse(stripped)
         result = self._execute_chain(ast)
+        if result.exit_code == 0 and self.on_state_change and self._should_persist(ast):
+            self.on_state_change()
         return result.stderr + result.stdout
+
+    def _history_output(self) -> str:
+        lines = [f"{idx + 1}  {cmd}" for idx, cmd in enumerate(self.session.state.history)]
+        return ("\n".join(lines) + "\n") if lines else ""
+
+    def _handle_alias(self, line: str) -> str:
+        if line == "alias":
+            if not self.session.state.aliases:
+                return ""
+            return "".join(f"alias {k}='{v}'\n" for k, v in sorted(self.session.state.aliases.items()))
+        _, value = line.split("alias", 1)
+        value = value.strip()
+        if "=" not in value:
+            return "alias: usage: alias name='value'\n"
+        name, body = value.split("=", 1)
+        name = name.strip()
+        body = body.strip().strip("'").strip('"')
+        if not name:
+            return "alias: invalid alias name\n"
+        self.session.state.aliases[name] = body
+        return ""
+
+    def _handle_export(self, line: str) -> str:
+        tokens = shlex.split(line)
+        if len(tokens) < 2:
+            return "export: usage: export KEY=VALUE\n"
+        for tok in tokens[1:]:
+            if "=" not in tok:
+                return f"export: invalid assignment: {tok}\n"
+            key, value = tok.split("=", 1)
+            if not key:
+                return "export: invalid variable name\n"
+            self.session.state.env[key] = value
+        return ""
+
+    def _should_persist(self, chain: ChainNode) -> bool:
+        for pipeline in chain.pipelines:
+            for cmd in pipeline.commands:
+                if cmd.command in self._MUTATING_COMMANDS:
+                    return True
+                if any(r.operator in {">", ">>"} for r in cmd.redirects):
+                    return True
+        return False
 
     def _execute_chain(self, chain: ChainNode) -> ExecResult:
         final = ExecResult()
@@ -53,11 +116,21 @@ class ShellEngine:
         output = ""
         for cmd in commands:
             env = {**self.session.state.env, **cmd.env}
-            args = [self._expand(a, env) for a in cmd.args]
+            if cmd.command in self.session.state.aliases:
+                alias_expanded = shlex.split(self.session.state.aliases[cmd.command])
+                if alias_expanded:
+                    cmd_command = alias_expanded[0]
+                    cmd_args = alias_expanded[1:] + cmd.args
+                else:
+                    cmd_command = cmd.command
+                    cmd_args = cmd.args
+            else:
+                cmd_command = cmd.command
+                cmd_args = cmd.args
             flags = [self._expand(f, env) for f in cmd.flags]
             res = self.kernel.run(
-                command=self._expand(cmd.command, env),
-                args=args,
+                command=self._expand(cmd_command, env),
+                args=[self._expand(a, env) for a in cmd_args],
                 flags=flags,
                 cwd=self.session.state.cwd,
                 env=env,

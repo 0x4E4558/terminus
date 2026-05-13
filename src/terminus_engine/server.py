@@ -14,33 +14,73 @@ from .shell import ShellEngine
 from .terminal import TerminalRenderer
 
 
+class TerminusSSHServer(asyncssh.SSHServer):
+    def __init__(self, username: str, password: str) -> None:
+        self._username = username
+        self._password = password
+
+    def begin_auth(self, username: str) -> bool:
+        return True
+
+    def password_auth_supported(self) -> bool:
+        return True
+
+    def validate_password(self, username: str, password: str) -> bool:
+        return username == self._username and password == self._password
+
+
 class TerminusServer:
-    def __init__(self, host: str, port: int, host_key: str | None, state_file: str) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        host_key: str | None,
+        state_file: str,
+        auth_user: str,
+        auth_password: str,
+    ) -> None:
         self.host = host
         self.port = port
         self.host_key = host_key
+        self.auth_user = auth_user
+        self.auth_password = auth_password
         self.persistence = PersistenceEngine(Path(state_file))
         self.kernel = VirtualKernel(self.persistence.load_vfs())
         self.renderer = TerminalRenderer()
         self.sessions = SessionManager()
         self._listener: asyncssh.SSHAcceptor | None = None
 
-    async def start(self) -> None:
-        options = {}
+    def _ensure_host_key(self) -> str:
         if self.host_key:
-            options["server_host_keys"] = [self.host_key]
+            host_key_path = Path(self.host_key)
+        else:
+            host_key_path = Path(".terminus/ssh_host_key")
+        host_key_path.parent.mkdir(parents=True, exist_ok=True)
+        if not host_key_path.exists():
+            key = asyncssh.generate_private_key("ssh-rsa")
+            key.write_private_key(str(host_key_path))
+        return str(host_key_path)
 
+    async def start(self) -> None:
         self._listener = await asyncssh.listen(
             self.host,
             self.port,
+            server_factory=lambda: TerminusSSHServer(
+                username=self.auth_user,
+                password=self.auth_password,
+            ),
             process_factory=self._handle_client,
             encoding="utf-8",
-            **options,
+            server_host_keys=[self._ensure_host_key()],
         )
 
     async def _handle_client(self, process: asyncssh.SSHServerProcess) -> None:
         session = self.sessions.create()
-        shell = ShellEngine(self.kernel, session)
+        shell = ShellEngine(
+            self.kernel,
+            session,
+            on_state_change=lambda: self.persistence.save_vfs(self.kernel.vfs),
+        )
         process.stdout.write(self.renderer.banner())
         process.stdout.write(self.renderer.prompt(session))
         async for line in process.stdin:
@@ -62,8 +102,22 @@ class TerminusServer:
             await self._listener.wait_closed()
 
 
-async def run_server(host: str, port: int, host_key: str | None, state_file: str) -> None:
-    server = TerminusServer(host=host, port=port, host_key=host_key, state_file=state_file)
+async def run_server(
+    host: str,
+    port: int,
+    host_key: str | None,
+    state_file: str,
+    auth_user: str,
+    auth_password: str,
+) -> None:
+    server = TerminusServer(
+        host=host,
+        port=port,
+        host_key=host_key,
+        state_file=state_file,
+        auth_user=auth_user,
+        auth_password=auth_password,
+    )
     await server.start()
     stop_event = asyncio.Event()
 
@@ -85,13 +139,24 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8022)
     parser.add_argument("--host-key", default=None, help="Path to SSH host key (optional)")
+    parser.add_argument("--auth-user", default="operator", help="SSH login username")
+    parser.add_argument("--auth-password", default="wreck", help="SSH login password")
     parser.add_argument(
         "--state-file",
         default=".terminus/state/world.json",
         help="Persistence file for virtual world state",
     )
     args = parser.parse_args()
-    asyncio.run(run_server(args.host, args.port, args.host_key, args.state_file))
+    asyncio.run(
+        run_server(
+            args.host,
+            args.port,
+            args.host_key,
+            args.state_file,
+            args.auth_user,
+            args.auth_password,
+        )
+    )
 
 
 if __name__ == "__main__":

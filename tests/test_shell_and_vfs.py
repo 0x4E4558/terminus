@@ -34,6 +34,22 @@ class ShellAndVFSTests(unittest.TestCase):
         run(shell, "cd /home/operator/sector0")
         out = run(shell, "pwd")
         self.assertIn("/home/operator/sector0", out)
+        run(shell, "cd ..")
+        out2 = run(shell, "pwd")
+        self.assertIn("/home/operator", out2)
+
+    def test_alias_export_env_and_history(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+        run(shell, "alias ll='ls -l'")
+        run(shell, "mkdir -p logs")
+        out = run(shell, "ll")
+        self.assertIsInstance(out, str)
+        run(shell, "export REGION=crash-site")
+        env_out = run(shell, "env")
+        self.assertIn("REGION=crash-site", env_out)
+        hist = run(shell, "history")
+        self.assertIn("alias ll='ls -l'", hist)
 
 
 if __name__ == "__main__":

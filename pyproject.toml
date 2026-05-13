@@ -11,6 +11,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = []
 
+[project.scripts]
+terminus-engine = "terminus_engine.server:main"
+
 [build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"

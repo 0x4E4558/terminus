@@ -60,8 +60,17 @@ class VirtualFilesystem:
         candidate = PurePosixPath(path)
         if not candidate.is_absolute():
             candidate = PurePosixPath(cwd) / candidate
-        normalized = PurePosixPath("/" + str(candidate).lstrip("/"))
-        return str(normalized)
+
+        stack: list[str] = []
+        for part in candidate.parts:
+            if part in {"", "/", "."}:
+                continue
+            if part == "..":
+                if stack:
+                    stack.pop()
+                continue
+            stack.append(part)
+        return "/" + "/".join(stack)
 
     def _walk(self, abs_path: str) -> tuple[VFSNode, str]:
         if not abs_path.startswith("/"):
@@ -73,10 +82,6 @@ class VirtualFilesystem:
         for part in parts:
             if node.node_type != "dir":
                 raise VFSError(f"not a directory: {node.name}")
-            if part == ".":
-                continue
-            if part == "..":
-                continue
             child = node.children.get(part)
             if child is None:
                 raise FileNotFoundError(abs_path)
