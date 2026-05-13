@@ -17,6 +17,7 @@ class ShellSession:
 
 class ShellEngine:
     _MUTATING_COMMANDS = {"mkdir", "touch", "cp", "mv", "rm"}
+    _VAR_PATTERN = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 
     def __init__(
         self,
@@ -165,4 +166,3 @@ class ShellEngine:
 
     def _expand(self, token: str, env: dict[str, str]) -> str:
         return self._VAR_PATTERN.sub(lambda m: env.get(m.group(1), m.group(0)), token)
-    _VAR_PATTERN = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")

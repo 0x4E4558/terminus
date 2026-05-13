@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 import fnmatch
 
-from .vfs import VirtualFilesystem, VFSError
+from .vfs import VFSNode, VirtualFilesystem, VFSError
 
 
 @dataclass(slots=True)
@@ -62,11 +62,16 @@ class VirtualKernel:
         nodes = self.vfs.list_dir(path, include_hidden=include_hidden)
         if long:
             lines = [
-                f"{n.node_type[0]}{self._mode_to_rwx(n.mode)} {n.owner} {n.group} {len(n.content)} {n.modified_at} {n.name}"
+                f"{n.node_type[0]}{self._mode_to_rwx(n.mode)} {n.owner} {n.group} {self._node_size(n)} {n.modified_at} {n.name}"
                 for n in nodes
             ]
             return ExecResult(stdout=("\n".join(lines) + "\n") if lines else "")
         return ExecResult(stdout=("  ".join(n.name for n in nodes) + "\n") if nodes else "")
+
+    def _node_size(self, node: VFSNode) -> int:
+        if node.node_type == "dir":
+            return len(node.children)
+        return len(node.content)
 
     def _mode_to_rwx(self, mode: str) -> str:
         mapping = {

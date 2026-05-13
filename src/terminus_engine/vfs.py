@@ -79,7 +79,7 @@ class VirtualFilesystem:
                     stack.pop()
                 continue
             stack.append(part)
-        return "/" + "/".join(stack)
+        return "/" if not stack else "/" + "/".join(stack)
 
     def _walk(self, abs_path: str) -> tuple[VFSNode, str]:
         if not abs_path.startswith("/"):
