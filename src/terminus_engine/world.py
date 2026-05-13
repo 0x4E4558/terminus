@@ -18,6 +18,7 @@ def _default_skills() -> dict[str, int]:
 
 
 def _default_dialogue_scripts() -> dict[str, list[str]]:
+    """Seed dialogue channels used as in-world guidance from system and NPC voices."""
     return {
         "system": [
             "ANOMALY CONFIRMED: shell telemetry drift detected across relay sectors.",
@@ -365,20 +366,21 @@ class WorldSimulation:
         speaker_key = speaker.lower()
         lines = self.dialogue_scripts.get(speaker_key)
         if lines is None:
-            raise ValueError(f"unknown dialogue channel: {speaker}")
+            channels = ", ".join(sorted(self.dialogue_scripts.keys()))
+            raise ValueError(f"unknown dialogue channel: {speaker}. available channels: {channels}")
         output = list(lines)
         open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
         if speaker_key == "system":
             output.append(f"ACTIVE HOST: {self.current_host} | OPEN INCIDENTS: {open_incidents} | DETECTIONS: {len(self.detections)}")
         if speaker_key != "system" and open_incidents > 0:
-            output.append(f"{speaker}: {open_incidents} unresolved incidents still shaping the sector.")
+            output.append(f"{speaker_key}: {open_incidents} unresolved incidents still shaping the sector.")
         contained = [incident.incident_id for incident in self.incidents.values() if incident.status == "contained"]
         if contained:
             output.append(f"Contained incidents acknowledged: {', '.join(contained)}. Continue hunting for residual persistence.")
         return output
 
     def increment_skill(self, skill_name: str, amount: int = 1) -> None:
-        self.skills[skill_name] = self.skills.get(skill_name, 1) + amount
+        self.skills[skill_name] = self.skills.get(skill_name, 0) + amount
 
     def average_skill_level(self) -> float:
         if not self.skills:
