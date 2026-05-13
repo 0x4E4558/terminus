@@ -17,6 +17,24 @@ def _default_skills() -> dict[str, int]:
     }
 
 
+LOW_THREAT_MIN_STABILITY = 85
+MEDIUM_THREAT_MIN_STABILITY = 65
+SEVERITY_STABILITY_PENALTY = {"low": 4, "medium": 8, "high": 14, "critical": 18}
+
+
+def _threat_level_for_stability(stability: int) -> str:
+    if stability >= LOW_THREAT_MIN_STABILITY:
+        return "low"
+    if stability >= MEDIUM_THREAT_MIN_STABILITY:
+        return "medium"
+    return "high"
+
+
+def _max_threat(level_a: str, level_b: str) -> str:
+    rank = {"low": 1, "medium": 2, "high": 3}
+    return level_a if rank.get(level_a, 0) >= rank.get(level_b, 0) else level_b
+
+
 def _default_dialogue_scripts() -> dict[str, list[str]]:
     """Seed dialogue channels used as in-world guidance from system and NPC voices."""
     return {
@@ -146,6 +164,8 @@ class WorldSimulation:
     online_sessions: list[str] = field(default_factory=lambda: ["operator"])
     skills: dict[str, int] = field(default_factory=dict)
     dialogue_scripts: dict[str, list[str]] = field(default_factory=dict)
+    training_modules: list[dict[str, str]] = field(default_factory=list)
+    completed_training: list[str] = field(default_factory=list)
     host_states: dict[str, dict] = field(default_factory=dict)
     avatar_traces: list[dict] = field(default_factory=list)
     world_tick: int = 0
@@ -299,6 +319,29 @@ class WorldSimulation:
         }
         self.skills = _default_skills()
         self.dialogue_scripts = _default_dialogue_scripts()
+        self.training_modules = [
+            {
+                "id": "LNX-001",
+                "title": "Navigation and workspace setup",
+                "focus": "pwd, ls, cd, mkdir",
+                "objective": "Create /home/operator/training and move into it.",
+                "hint": "mkdir -p /home/operator/training && cd /home/operator/training",
+            },
+            {
+                "id": "LNX-002",
+                "title": "File creation and inspection",
+                "focus": "touch, echo, cat",
+                "objective": "Create notes.txt containing 'linux fundamentals'.",
+                "hint": "echo linux fundamentals > notes.txt && cat notes.txt",
+            },
+            {
+                "id": "LNX-003",
+                "title": "Pipelines and filtering",
+                "focus": "cat, grep, redirection",
+                "objective": "Create evidence.txt containing a line with 'anomaly'.",
+                "hint": "cat incidents.log | grep anomaly > evidence.txt",
+            },
+        ]
         self._initialize_host_states()
         self._seed_avatar_traces()
         self._refresh_detections()
@@ -316,17 +359,19 @@ class WorldSimulation:
             self.host_states[host] = {
                 "os": info.get("os", "linux"),
                 "stability": base_stability,
-                "threat_level": "low",
+                "threat_level": _threat_level_for_stability(base_stability),
                 "last_updated": _now(),
             }
-        severity_penalty = {"low": 4, "medium": 8, "high": 14, "critical": 18}
         for incident in self.incidents.values():
             state = self.host_states.get(incident.host)
             if state is None:
                 continue
-            penalty = severity_penalty.get(incident.severity, 8)
+            penalty = SEVERITY_STABILITY_PENALTY.get(incident.severity, 8)
             state["stability"] = max(0, int(state["stability"]) - penalty)
-            state["threat_level"] = "high" if incident.status == "open" else state["threat_level"]
+            threat = _threat_level_for_stability(int(state["stability"]))
+            if incident.status == "open":
+                threat = _max_threat(threat, "high")
+            state["threat_level"] = threat
             state["last_updated"] = _now()
         for process in self.processes:
             if process.malicious:
@@ -334,7 +379,9 @@ class WorldSimulation:
                 if state is None:
                     continue
                 state["stability"] = max(0, int(state["stability"]) - (4 if process.hidden else 2))
-                state["threat_level"] = "high" if process.hidden else "medium"
+                base_threat = _threat_level_for_stability(int(state["stability"]))
+                boost = "high" if process.hidden else "medium"
+                state["threat_level"] = _max_threat(base_threat, boost)
                 state["last_updated"] = _now()
 
     def _seed_avatar_traces(self) -> None:
@@ -422,7 +469,7 @@ class WorldSimulation:
                 state = self.host_states.get(proc.host)
                 if state is not None:
                     state["stability"] = min(100, int(state["stability"]) + 3)
-                    state["threat_level"] = "medium" if state["stability"] < 85 else "low"
+                    state["threat_level"] = _threat_level_for_stability(int(state["stability"]))
                     state["last_updated"] = _now()
                 self._mark_dirty()
                 return True
@@ -455,10 +502,10 @@ class WorldSimulation:
         if state is not None:
             if action in {"stop"}:
                 state["stability"] = max(0, int(state["stability"]) - 5)
-                state["threat_level"] = "medium" if state["stability"] >= 65 else "high"
+                state["threat_level"] = _max_threat(_threat_level_for_stability(int(state["stability"])), "medium")
             else:
                 state["stability"] = min(100, int(state["stability"]) + 2)
-                state["threat_level"] = "low" if state["stability"] >= 85 else "medium"
+                state["threat_level"] = _threat_level_for_stability(int(state["stability"]))
             state["last_updated"] = _now()
         self._mark_dirty()
 
@@ -479,7 +526,7 @@ class WorldSimulation:
         state = self.host_states.get(incident.host)
         if state is not None:
             state["stability"] = min(100, int(state["stability"]) + 8)
-            state["threat_level"] = "medium" if state["stability"] < 85 else "low"
+            state["threat_level"] = _threat_level_for_stability(int(state["stability"]))
             state["last_updated"] = _now()
         self._refresh_detections()
         self._mark_dirty()
@@ -504,6 +551,38 @@ class WorldSimulation:
     def increment_skill(self, skill_name: str, amount: int = 1) -> None:
         self.skills[skill_name] = self.skills.get(skill_name, 0) + amount
         self._mark_dirty()
+
+    def training_overview(self) -> list[dict[str, str]]:
+        rows: list[dict[str, str]] = []
+        completed = set(self.completed_training)
+        for module in self.training_modules:
+            row = dict(module)
+            row["status"] = "complete" if module["id"] in completed else "open"
+            rows.append(row)
+        return rows
+
+    def next_training_module(self) -> dict[str, str] | None:
+        completed = set(self.completed_training)
+        for module in self.training_modules:
+            if module["id"] not in completed:
+                return dict(module)
+        return None
+
+    def complete_training_module(self, module_id: str) -> bool:
+        valid_ids = {module["id"] for module in self.training_modules}
+        if module_id not in valid_ids:
+            raise ValueError(f"unknown training module: {module_id}")
+        if module_id in self.completed_training:
+            return False
+        self.completed_training.append(module_id)
+        self.increment_skill("shell_fluency")
+        if module_id == "LNX-003":
+            self.increment_skill("forensics")
+        self.log_events.append(
+            {"ts": _now(), "host": self.current_host, "source": "training", "severity": "info", "message": f"{module_id} completed"}
+        )
+        self._mark_dirty()
+        return True
 
     def average_skill_level(self) -> float:
         if not self.skills:
@@ -547,7 +626,7 @@ class WorldSimulation:
         hidden_malware = sum(1 for proc in self.processes if proc.malicious and proc.hidden)
         running_services = sum(1 for service in self.services.values() if service.status == "running")
         avg_skill = self.average_skill_level()
-        result: dict[str, float | int] = {
+        metrics_result: dict[str, float | int] = {
             "open_incidents": open_incidents,
             "contained_incidents": contained_incidents,
             "detections": len(self.detections),
@@ -556,9 +635,11 @@ class WorldSimulation:
             "total_services": len(self.services),
             "learning_index": round(avg_skill, 2),
             "world_tick": self.world_tick,
+            "linux_training_completed": len(self.completed_training),
+            "linux_training_total": len(self.training_modules),
         }
-        self._metrics_cache = (self._state_revision, result)
-        return dict(result)
+        self._metrics_cache = (self._state_revision, metrics_result)
+        return dict(metrics_result)
 
     def get_avatar_traces(self, host: str | None = None) -> list[dict]:
         if host is None:
@@ -587,7 +668,7 @@ class WorldSimulation:
                 if incident.status == "open":
                     penalty = 4 if incident.severity == "high" else 2
                     state["stability"] = max(0, int(state["stability"]) - penalty)
-                    state["threat_level"] = "high" if state["stability"] < 80 else "medium"
+                    state["threat_level"] = _max_threat(_threat_level_for_stability(int(state["stability"])), "medium")
                     if incident.exfiltration:
                         self.telemetry.append(
                             {
@@ -600,7 +681,7 @@ class WorldSimulation:
                         )
                 else:
                     state["stability"] = min(100, int(state["stability"]) + 1)
-                    state["threat_level"] = "low" if state["stability"] >= 85 else "medium"
+                    state["threat_level"] = _threat_level_for_stability(int(state["stability"]))
                 state["last_updated"] = _now()
             if self.hosts.get(self.current_host, {}).get("os") == "windows":
                 self.log_events.append(
@@ -637,6 +718,8 @@ class WorldSimulation:
             "online_sessions": list(self.online_sessions),
             "skills": dict(self.skills),
             "dialogue_scripts": {k: list(v) for k, v in self.dialogue_scripts.items()},
+            "training_modules": [dict(item) for item in self.training_modules],
+            "completed_training": list(self.completed_training),
             "host_states": {k: dict(v) for k, v in self.host_states.items()},
             "avatar_traces": [dict(item) for item in self.avatar_traces],
             "world_tick": self.world_tick,
@@ -669,6 +752,8 @@ class WorldSimulation:
             _default_skills(),
         )
         world.dialogue_scripts = data.get("dialogue_scripts", {})
+        world.training_modules = data.get("training_modules", [])
+        world.completed_training = data.get("completed_training", [])
         world.host_states = data.get("host_states", {})
         world.avatar_traces = data.get("avatar_traces", [])
         world.world_tick = data.get("world_tick", 0)
@@ -679,6 +764,30 @@ class WorldSimulation:
             world.dialogue_scripts = _default_dialogue_scripts()
         if not world.skills:
             world.skills = _default_skills()
+        if not world.training_modules:
+            world.training_modules = [
+                {
+                    "id": "LNX-001",
+                    "title": "Navigation and workspace setup",
+                    "focus": "pwd, ls, cd, mkdir",
+                    "objective": "Create /home/operator/training and move into it.",
+                    "hint": "mkdir -p /home/operator/training && cd /home/operator/training",
+                },
+                {
+                    "id": "LNX-002",
+                    "title": "File creation and inspection",
+                    "focus": "touch, echo, cat",
+                    "objective": "Create notes.txt containing 'linux fundamentals'.",
+                    "hint": "echo linux fundamentals > notes.txt && cat notes.txt",
+                },
+                {
+                    "id": "LNX-003",
+                    "title": "Pipelines and filtering",
+                    "focus": "cat, grep, redirection",
+                    "objective": "Create evidence.txt containing a line with 'anomaly'.",
+                    "hint": "cat incidents.log | grep anomaly > evidence.txt",
+                },
+            ]
         if not world.host_states:
             world._initialize_host_states()
         if not world.avatar_traces:

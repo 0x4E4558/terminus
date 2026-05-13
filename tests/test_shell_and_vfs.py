@@ -155,6 +155,97 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("world_tick=2", state_after)
         self.assertIn("ghost-node", state_after)
 
+    async def test_linux_admin_command_surface_and_vfs_behavior(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        help_out = await shell.handle_line("help")
+        required = [
+            "pwd",
+            "ls",
+            "cd",
+            "cat",
+            "mkdir",
+            "touch",
+            "cp",
+            "mv",
+            "rm",
+            "grep",
+            "echo",
+            "whoami",
+            "uname",
+            "id",
+            "date",
+            "head",
+            "tail",
+            "wc",
+            "find",
+            "chmod",
+            "chown",
+            "df",
+            "du",
+            "free",
+        ]
+        for cmd in required:
+            self.assertIn(cmd, help_out)
+
+        await shell.handle_line("mkdir -p /home/operator/training")
+        await shell.handle_line("cd /home/operator/training")
+        await shell.handle_line("echo linux fundamentals > notes.txt")
+        await shell.handle_line("echo anomaly_detected >> notes.txt")
+
+        head_out = await shell.handle_line("head -n 1 notes.txt")
+        self.assertIn("linux fundamentals", head_out)
+        tail_out = await shell.handle_line("tail -n 1 notes.txt")
+        self.assertIn("anomaly_detected", tail_out)
+        wc_out = await shell.handle_line("wc notes.txt")
+        self.assertIn("notes.txt", wc_out)
+
+        await shell.handle_line("chmod 600 notes.txt")
+        ls_long = await shell.handle_line("ls -l notes.txt")
+        self.assertIn("rw-------", ls_long)
+
+        await shell.handle_line("chown root:operators notes.txt")
+        ls_long_after = await shell.handle_line("ls -l notes.txt")
+        self.assertIn("root operators", ls_long_after)
+
+        find_out = await shell.handle_line("find /home/operator -name notes.txt")
+        self.assertIn("/home/operator/training/notes.txt", find_out)
+        df_out = await shell.handle_line("df")
+        self.assertIn("Filesystem", df_out)
+        du_out = await shell.handle_line("du /home/operator/training")
+        self.assertIn("/home/operator/training", du_out)
+        free_out = await shell.handle_line("free")
+        self.assertIn("Mem:", free_out)
+
+    async def test_training_guides_linux_fundamentals(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        training_list = await shell.handle_line("training list")
+        self.assertIn("LNX-001", training_list)
+        self.assertIn("[ ]", training_list)
+
+        training_next = await shell.handle_line("training next")
+        self.assertIn("Navigation and workspace setup", training_next)
+
+        await shell.handle_line("mkdir -p /home/operator/training")
+        await shell.handle_line("cd /home/operator/training")
+        lnx1 = await shell.handle_line("training check LNX-001")
+        self.assertIn("LNX-001 complete", lnx1)
+
+        await shell.handle_line("echo linux fundamentals > notes.txt")
+        lnx2 = await shell.handle_line("training check LNX-002")
+        self.assertIn("LNX-002 complete", lnx2)
+
+        await shell.handle_line("training next")
+        await shell.handle_line("cat incidents.log | grep anomaly > evidence.txt")
+        lnx3 = await shell.handle_line("training check LNX-003")
+        self.assertIn("LNX-003 complete", lnx3)
+
+        done = await shell.handle_line("training next")
+        self.assertIn("all foundational linux modules completed", done)
+
     def test_persistence_load_state_supports_legacy_and_v2(self) -> None:
         with TemporaryDirectory() as tmp:
             state_file = Path(tmp) / "state.json"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import PurePosixPath
 import fnmatch
 
@@ -43,6 +44,19 @@ class VirtualKernel:
             "rm": self._rm,
             "grep": self._grep,
             "echo": self._echo,
+            "whoami": self._whoami,
+            "uname": self._uname,
+            "id": self._id,
+            "date": self._date,
+            "head": self._head,
+            "tail": self._tail,
+            "wc": self._wc,
+            "find": self._find,
+            "chmod": self._chmod,
+            "chown": self._chown,
+            "df": self._df,
+            "du": self._du,
+            "free": self._free,
             "help": self._help,
             "regions": self._regions,
             "hosts": self._hosts,
@@ -70,6 +84,7 @@ class VirtualKernel:
             "state": self._state,
             "avatar": self._avatar,
             "advance": self._advance,
+            "training": self._training,
         }
         handler = dispatch.get(command)
         if handler is None:
@@ -87,7 +102,11 @@ class VirtualKernel:
         path = self.vfs.resolve_path(cwd, target)
         include_hidden = "-a" in flags or "--all" in flags
         long = "-l" in flags
-        nodes = self.vfs.list_dir(path, include_hidden=include_hidden)
+        node, _ = self.vfs._walk(path)
+        if node.node_type == "dir":
+            nodes = self.vfs.list_dir(path, include_hidden=include_hidden)
+        else:
+            nodes = [node]
         if long:
             lines = []
             for n in nodes:
@@ -208,11 +227,167 @@ class VirtualKernel:
     def _echo(self, args: list[str], **kwargs) -> ExecResult:
         return ExecResult(stdout=(" ".join(args) + "\n"))
 
+    def _whoami(self, env: dict[str, str], **kwargs) -> ExecResult:
+        return ExecResult(stdout=f"{env.get('USER', 'operator')}\n")
+
+    def _uname(self, args: list[str], **kwargs) -> ExecResult:
+        if "-a" in args:
+            return ExecResult(stdout="Linux crash-site 6.8.0-terminus #1 SMP x86_64 GNU/Linux\n")
+        return ExecResult(stdout="Linux\n")
+
+    def _id(self, env: dict[str, str], **kwargs) -> ExecResult:
+        user = env.get("USER", "operator")
+        return ExecResult(stdout=f"uid=1000({user}) gid=1000(operators) groups=1000(operators)\n")
+
+    def _date(self, **kwargs) -> ExecResult:
+        return ExecResult(stdout=f"{datetime.now(UTC).strftime('%a %b %d %H:%M:%S UTC %Y')}\n")
+
+    def _head(self, args: list[str], flags: list[str], cwd: str, stdin: str, **kwargs) -> ExecResult:
+        line_count = 10
+        file_arg: str | None = None
+        if "-n" in flags:
+            if not args:
+                raise ValueError("usage: head [-n N] [FILE]")
+            line_count = int(args[0])
+            if len(args) > 1:
+                file_arg = args[1]
+        elif args and args[0] == "-n":
+            if len(args) < 2:
+                raise ValueError("usage: head [-n N] [FILE]")
+            line_count = int(args[1])
+            if len(args) > 2:
+                file_arg = args[2]
+        elif args:
+            file_arg = args[0]
+        content = self.vfs.read_file(self.vfs.resolve_path(cwd, file_arg)) if file_arg else stdin
+        lines = content.splitlines()
+        output = "\n".join(lines[:line_count])
+        return ExecResult(stdout=(output + "\n") if output else "")
+
+    def _tail(self, args: list[str], flags: list[str], cwd: str, stdin: str, **kwargs) -> ExecResult:
+        line_count = 10
+        file_arg: str | None = None
+        if "-n" in flags:
+            if not args:
+                raise ValueError("usage: tail [-n N] [FILE]")
+            line_count = int(args[0])
+            if len(args) > 1:
+                file_arg = args[1]
+        elif args and args[0] == "-n":
+            if len(args) < 2:
+                raise ValueError("usage: tail [-n N] [FILE]")
+            line_count = int(args[1])
+            if len(args) > 2:
+                file_arg = args[2]
+        elif args:
+            file_arg = args[0]
+        content = self.vfs.read_file(self.vfs.resolve_path(cwd, file_arg)) if file_arg else stdin
+        lines = content.splitlines()
+        output = "\n".join(lines[-line_count:])
+        return ExecResult(stdout=(output + "\n") if output else "")
+
+    def _wc(self, args: list[str], cwd: str, stdin: str, **kwargs) -> ExecResult:
+        file_arg = args[0] if args else None
+        content = self.vfs.read_file(self.vfs.resolve_path(cwd, file_arg)) if file_arg else stdin
+        lines = content.splitlines()
+        words = sum(len(line.split()) for line in lines)
+        bytes_count = len(content.encode("utf-8"))
+        label = file_arg or "-"
+        return ExecResult(stdout=f"{len(lines)} {words} {bytes_count} {label}\n")
+
+    def _find(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
+        if args and args[0] == "-name":
+            start = "."
+        else:
+            start = args[0] if args else "."
+        pattern = "*"
+        if "-name" in args:
+            idx = args.index("-name")
+            if idx + 1 >= len(args):
+                raise ValueError("usage: find PATH [-name PATTERN]")
+            pattern = args[idx + 1]
+        start_path = self.vfs.resolve_path(cwd, start)
+        rows: list[str] = []
+        self._collect_find_rows(start_path, pattern, rows)
+        return ExecResult(stdout=("\n".join(rows) + "\n") if rows else "", exit_code=0 if rows else 1)
+
+    def _collect_find_rows(self, abs_path: str, pattern: str, rows: list[str]) -> None:
+        node, _ = self.vfs._walk(abs_path)
+        name = PurePosixPath(abs_path).name or "/"
+        if fnmatch.fnmatch(name, pattern):
+            rows.append(abs_path)
+        if node.node_type == "dir":
+            for child_name in sorted(node.children.keys()):
+                child_path = str(PurePosixPath(abs_path) / child_name) if abs_path != "/" else f"/{child_name}"
+                self._collect_find_rows(child_path, pattern, rows)
+
+    def _chmod(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
+        if len(args) < 2:
+            raise ValueError("usage: chmod MODE FILE...")
+        mode = args[0]
+        if len(mode) != 3 or any(ch not in "01234567" for ch in mode):
+            raise ValueError("mode must be octal, e.g., 644")
+        for target in args[1:]:
+            path = self.vfs.resolve_path(cwd, target)
+            node, _ = self.vfs._walk(path)
+            node.mode = mode
+            node.touch()
+        return ExecResult()
+
+    def _chown(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
+        if len(args) < 2:
+            raise ValueError("usage: chown OWNER[:GROUP] FILE...")
+        owner_spec = args[0]
+        owner, sep, group = owner_spec.partition(":")
+        for target in args[1:]:
+            path = self.vfs.resolve_path(cwd, target)
+            node, _ = self.vfs._walk(path)
+            node.owner = owner or node.owner
+            if sep:
+                node.group = group or node.group
+            node.touch()
+        return ExecResult()
+
+    def _df(self, **kwargs) -> ExecResult:
+        total = 10 * 1024 * 1024
+        used = self._du_size("/")
+        available = max(0, total - used)
+        use_pct = int((used / total) * 100) if total else 0
+        lines = [
+            "Filesystem     1K-blocks  Used Available Use% Mounted on",
+            f"terminus-vfs   {total // 1024:<9} {used // 1024:<5} {available // 1024:<9} {use_pct}% /",
+        ]
+        return ExecResult(stdout="\n".join(lines) + "\n")
+
+    def _du(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
+        target = args[0] if args else "."
+        path = self.vfs.resolve_path(cwd, target)
+        size = self._du_size(path)
+        return ExecResult(stdout=f"{size}\t{path}\n")
+
+    def _du_size(self, abs_path: str) -> int:
+        node, _ = self.vfs._walk(abs_path)
+        if node.node_type == "file":
+            return len(node.content.encode("utf-8"))
+        total = 0
+        for name in node.children:
+            child_path = str(PurePosixPath(abs_path) / name) if abs_path != "/" else f"/{name}"
+            total += self._du_size(child_path)
+        return total
+
+    def _free(self, **kwargs) -> ExecResult:
+        lines = [
+            "              total        used        free      shared  buff/cache   available",
+            "Mem:        2048000      884000      420000       64000      744000      980000",
+            "Swap:       1024000      120000      904000",
+        ]
+        return ExecResult(stdout="\n".join(lines) + "\n")
+
     def _help(self, **kwargs) -> ExecResult:
         return ExecResult(
             stdout=(
-                "virtual commands: pwd ls cd cat mkdir touch cp mv rm grep echo help regions hosts factions npcs travel ps kill systemctl ss authlog logs telemetry incidents malware contain teams events siem edr\n"
-                "simulation commands: brief objectives metrics dialogue state avatar advance\n"
+                "core admin commands: pwd ls cd cat mkdir touch cp mv rm grep echo whoami uname id date head tail wc find chmod chown df du free\n"
+                "simulation commands: help regions hosts factions npcs travel ps kill systemctl ss authlog logs telemetry incidents malware contain teams events siem edr brief objectives metrics dialogue state avatar advance training\n"
                 "all operations run against TERMINUS virtual subsystems only.\n"
             )
         )
@@ -484,3 +659,66 @@ class VirtualKernel:
                 f"contained_incidents={metrics['contained_incidents']}\n"
             )
         )
+
+    def _training(self, args: list[str], cwd: str, **kwargs) -> ExecResult:
+        mode = args[0] if args else "next"
+        if mode == "list":
+            rows = []
+            for module in self.world.training_overview():
+                marker = "[x]" if module["status"] == "complete" else "[ ]"
+                rows.append(f"{marker} {module['id']} {module['title']} :: {module['focus']}")
+            return ExecResult(stdout=("\n".join(rows) + "\n") if rows else "no training modules\n")
+        if mode == "next":
+            module = self.world.next_training_module()
+            if module is None:
+                return ExecResult(stdout="all foundational linux modules completed\n")
+            if module["id"] == "LNX-003":
+                seed_path = "/home/operator/training/incidents.log"
+                if not self.vfs.exists(seed_path):
+                    self.vfs.write_file(
+                        seed_path,
+                        "event=normal\nevent=anomaly_detected src=10.42.7.99\nevent=normal\n",
+                    )
+            return ExecResult(
+                stdout=(
+                    f"{module['id']} {module['title']}\n"
+                    f"focus: {module['focus']}\n"
+                    f"objective: {module['objective']}\n"
+                    f"hint: {module['hint']}\n"
+                    f"verify: training check {module['id']}\n"
+                )
+            )
+        if mode == "check":
+            if len(args) < 2:
+                raise ValueError("usage: training check MODULE_ID")
+            module_id = args[1]
+            complete, feedback = self._evaluate_training_module(module_id=module_id, cwd=cwd)
+            if complete:
+                self.world.complete_training_module(module_id)
+                return ExecResult(stdout=f"{module_id} complete: {feedback}\n")
+            return ExecResult(stdout=f"{module_id} pending: {feedback}\n", exit_code=1)
+        raise ValueError("usage: training [list|next|check MODULE_ID]")
+
+    def _evaluate_training_module(self, module_id: str, cwd: str) -> tuple[bool, str]:
+        if module_id == "LNX-001":
+            workspace = "/home/operator/training"
+            if self.vfs.exists(workspace) and cwd == workspace:
+                return True, "workspace created and active directory set"
+            return False, "create /home/operator/training and cd into it"
+        if module_id == "LNX-002":
+            notes = self.vfs.resolve_path("/home/operator/training", "notes.txt")
+            if not self.vfs.exists(notes):
+                return False, "notes.txt not found in /home/operator/training"
+            content = self.vfs.read_file(notes).lower()
+            if "linux fundamentals" in content:
+                return True, "notes.txt contains linux fundamentals"
+            return False, "notes.txt must include the phrase 'linux fundamentals'"
+        if module_id == "LNX-003":
+            evidence = self.vfs.resolve_path("/home/operator/training", "evidence.txt")
+            if not self.vfs.exists(evidence):
+                return False, "evidence.txt not found; use grep pipeline and redirection"
+            content = self.vfs.read_file(evidence).lower()
+            if "anomaly" in content:
+                return True, "pipeline filtering and redirection validated"
+            return False, "evidence.txt must contain a line with 'anomaly'"
+        raise ValueError(f"unknown training module: {module_id}")
