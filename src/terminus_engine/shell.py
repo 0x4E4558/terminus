@@ -16,7 +16,22 @@ class ShellSession:
 
 
 class ShellEngine:
-    _MUTATING_COMMANDS = {"mkdir", "touch", "cp", "mv", "rm"}
+    _MUTATING_COMMANDS = {
+        "mkdir",
+        "touch",
+        "cp",
+        "mv",
+        "rm",
+        "travel",
+        "kill",
+        "systemctl",
+        "contain",
+        "advance",
+        "training",
+        "forensics",
+        "chmod",
+        "chown",
+    }
     # Matches $VARNAME where names start with letter/underscore and continue
     # with alphanumeric/underscore characters.
     _VAR_PATTERN = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")

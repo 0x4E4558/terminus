@@ -133,6 +133,133 @@ class ShellAndVFSTests(unittest.IsolatedAsyncioTestCase):
         metrics_after = await shell.handle_line("metrics")
         self.assertIn("contained_incidents=1", metrics_after)
         self.assertIn("incident_response=", metrics_after)
+        self.assertIn("world_tick=", metrics_after)
+
+    async def test_state_avatar_and_advance_commands(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        state_before = await shell.handle_line("state")
+        self.assertIn("world_tick=0", state_before)
+        self.assertIn("citadel-ad os=windows", state_before)
+
+        avatar = await shell.handle_line("avatar")
+        self.assertIn("0x4E4558", avatar)
+        self.assertIn("host=citadel-ad", avatar)
+
+        advanced = await shell.handle_line("advance 2")
+        self.assertIn("world advanced cycles=2", advanced)
+        self.assertIn("tick=2", advanced)
+
+        state_after = await shell.handle_line("state ghost-node")
+        self.assertIn("world_tick=2", state_after)
+        self.assertIn("ghost-node", state_after)
+
+    async def test_linux_admin_command_surface_and_vfs_behavior(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        help_out = await shell.handle_line("help")
+        required = [
+            "pwd",
+            "ls",
+            "cd",
+            "cat",
+            "mkdir",
+            "touch",
+            "cp",
+            "mv",
+            "rm",
+            "grep",
+            "echo",
+            "whoami",
+            "uname",
+            "id",
+            "date",
+            "head",
+            "tail",
+            "wc",
+            "find",
+            "chmod",
+            "chown",
+            "df",
+            "du",
+            "free",
+        ]
+        for cmd in required:
+            self.assertIn(cmd, help_out)
+
+        await shell.handle_line("mkdir -p /home/operator/training")
+        await shell.handle_line("cd /home/operator/training")
+        await shell.handle_line("echo linux fundamentals > notes.txt")
+        await shell.handle_line("echo anomaly_detected >> notes.txt")
+
+        head_out = await shell.handle_line("head -n 1 notes.txt")
+        self.assertIn("linux fundamentals", head_out)
+        tail_out = await shell.handle_line("tail -n 1 notes.txt")
+        self.assertIn("anomaly_detected", tail_out)
+        wc_out = await shell.handle_line("wc notes.txt")
+        self.assertIn("notes.txt", wc_out)
+
+        await shell.handle_line("chmod 600 notes.txt")
+        ls_long = await shell.handle_line("ls -l notes.txt")
+        self.assertIn("rw-------", ls_long)
+
+        await shell.handle_line("chown root:operators notes.txt")
+        ls_long_after = await shell.handle_line("ls -l notes.txt")
+        self.assertIn("root operators", ls_long_after)
+
+        find_out = await shell.handle_line("find /home/operator -name notes.txt")
+        self.assertIn("/home/operator/training/notes.txt", find_out)
+        df_out = await shell.handle_line("df")
+        self.assertIn("Filesystem", df_out)
+        du_out = await shell.handle_line("du /home/operator/training")
+        self.assertIn("/home/operator/training", du_out)
+        free_out = await shell.handle_line("free")
+        self.assertIn("Mem:", free_out)
+
+    async def test_training_guides_linux_fundamentals(self) -> None:
+        kernel = VirtualKernel()
+        shell = ShellEngine(kernel=kernel, session=SessionState())
+
+        training_list = await shell.handle_line("training list")
+        self.assertIn("ANA-001", training_list)
+        self.assertIn("[ ]", training_list)
+
+        training_next = await shell.handle_line("training next")
+        self.assertIn("Data Analysis Foundations", training_next)
+
+        await shell.handle_line("mkdir -p /home/operator/training")
+        await shell.handle_line("cd /home/operator/training")
+        await shell.handle_line("grep failed_login auth_sample.log > data-summary.txt")
+        stage1 = await shell.handle_line("training check ANA-001")
+        self.assertIn("ANA-001 complete", stage1)
+
+        await shell.handle_line("systemctl status sshd > system-summary.txt")
+        await shell.handle_line("chmod 640 system-summary.txt")
+        await shell.handle_line("chown root:operators system-summary.txt")
+        stage2 = await shell.handle_line("training check ANA-002")
+        self.assertIn("ANA-002 complete", stage2)
+
+        await shell.handle_line("ss > network-summary.txt")
+        stage3 = await shell.handle_line("training check ANA-003")
+        self.assertIn("ANA-003 complete", stage3)
+
+        await shell.handle_line("contain INC-GLASS-VEIL")
+        await shell.handle_line("incidents show INC-GLASS-VEIL > security-summary.txt")
+        stage4 = await shell.handle_line("training check ANA-004")
+        self.assertIn("ANA-004 complete", stage4)
+
+        await shell.handle_line("forensics record INC-GLASS-VEIL logs chain_of_custody")
+        await shell.handle_line("forensics export /home/operator/training/forensics-ledger.txt")
+        stage5 = await shell.handle_line("training check ANA-005")
+        self.assertIn("ANA-005 complete", stage5)
+
+        forensic_log = await shell.handle_line("forensics log")
+        self.assertIn("INC-GLASS-VEIL", forensic_log)
+
+        done = await shell.handle_line("training next")
+        self.assertIn("all foundational linux modules completed", done)
 
     def test_persistence_load_state_supports_legacy_and_v2(self) -> None:
         with TemporaryDirectory() as tmp:
