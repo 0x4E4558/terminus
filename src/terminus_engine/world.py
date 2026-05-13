@@ -312,9 +312,9 @@ class WorldSimulation:
                         svc.status = "stopped"
                         svc.pid = None
                 if was_malicious:
-                    self.skills["incident_response"] = self.skills.get("incident_response", 1) + 1
+                    self.increment_skill("incident_response")
                 if was_hidden:
-                    self.skills["forensics"] = self.skills.get("forensics", 1) + 1
+                    self.increment_skill("forensics")
                 self.log_events.append(
                     {"ts": _now(), "host": self.current_host, "source": "kernel", "severity": "info", "message": f"pid {pid} terminated"}
                 )
@@ -357,24 +357,32 @@ class WorldSimulation:
             {"ts": _now(), "host": incident.host, "source": "response", "severity": "warning", "message": f"{incident_id} containment initiated"}
         )
         self.telemetry.append({"ts": _now(), "host": incident.host, "metric": "containment", "value": 1.0, "tags": ["incident", incident_id]})
-        self.skills["incident_response"] = self.skills.get("incident_response", 1) + 1
-        self.skills["forensics"] = self.skills.get("forensics", 1) + 1
+        self.increment_skill("incident_response")
+        self.increment_skill("forensics")
         self._refresh_detections()
 
     def get_dialogue(self, speaker: str) -> list[str]:
-        key = speaker.lower()
-        lines = self.dialogue_scripts.get(key)
+        speaker_key = speaker.lower()
+        lines = self.dialogue_scripts.get(speaker_key)
         if lines is None:
             raise ValueError(f"unknown dialogue channel: {speaker}")
         output = list(lines)
         open_incidents = sum(1 for incident in self.incidents.values() if incident.status == "open")
-        if key == "system":
+        if speaker_key == "system":
             output.append(f"ACTIVE HOST: {self.current_host} | OPEN INCIDENTS: {open_incidents} | DETECTIONS: {len(self.detections)}")
-        if key != "system" and open_incidents > 0:
-            output.append(f"{key}: {open_incidents} unresolved incidents still shaping the sector.")
+        if speaker_key != "system" and open_incidents > 0:
+            output.append(f"{speaker_key}: {open_incidents} unresolved incidents still shaping the sector.")
         if "INC-GLASS-VEIL" in self.incidents and self.incidents["INC-GLASS-VEIL"].status == "contained":
             output.append("Glass Veil containment acknowledged. Continue hunting for residual persistence.")
         return output
+
+    def increment_skill(self, skill_name: str, amount: int = 1) -> None:
+        self.skills[skill_name] = self.skills.get(skill_name, 1) + amount
+
+    def average_skill_level(self) -> float:
+        if not self.skills:
+            return 1.0
+        return sum(self.skills.values()) / len(self.skills)
 
     def objectives(self) -> list[dict[str, str]]:
         hidden_malware = any(proc.malicious and proc.hidden for proc in self.processes)
@@ -406,11 +414,7 @@ class WorldSimulation:
         contained_incidents = sum(1 for incident in self.incidents.values() if incident.status == "contained")
         hidden_malware = sum(1 for proc in self.processes if proc.malicious and proc.hidden)
         running_services = sum(1 for service in self.services.values() if service.status == "running")
-        avg_skill = (
-            sum(self.skills.values()) / len(self.skills)
-            if self.skills
-            else 1.0
-        )
+        avg_skill = self.average_skill_level()
         return {
             "open_incidents": open_incidents,
             "contained_incidents": contained_incidents,
