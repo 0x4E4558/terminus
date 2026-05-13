@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 import shlex
 from typing import Callable
 
@@ -163,8 +164,5 @@ class ShellEngine:
         return ExecResult(stdout=output, stderr=stderr, exit_code=exit_code)
 
     def _expand(self, token: str, env: dict[str, str]) -> str:
-        result = token
-        for key in sorted(env.keys(), key=len, reverse=True):
-            value = env[key]
-            result = result.replace(f"${key}", value)
-        return result
+        return self._VAR_PATTERN.sub(lambda m: env.get(m.group(1), m.group(0)), token)
+    _VAR_PATTERN = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
