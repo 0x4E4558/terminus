@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 
 def _now() -> str:
@@ -21,6 +21,8 @@ LOW_THREAT_MIN_STABILITY = 85
 MEDIUM_THREAT_MIN_STABILITY = 65
 HIGH_THREAT_MIN_STABILITY = 40
 SEVERITY_STABILITY_PENALTY = {"low": 4, "medium": 8, "high": 14, "critical": 18}
+SIMULATION_START_TIME = datetime(2049, 1, 1, 0, 0, 0, tzinfo=UTC)
+WORLD_TICK_SECONDS = 60
 
 
 def _threat_level_for_stability(stability: int) -> str:
@@ -43,9 +45,11 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-001",
             "title": "Data Analysis Foundations",
+            "analyst_track": "data",
             "focus": "pwd, ls, cd, cat, grep, wc, head, tail, find",
             "objective": "Build /home/operator/training/data-summary.txt with a failed_login count from auth_sample.log.",
             "hint": "grep failed_login auth_sample.log > data-summary.txt",
+            "validation": {"required_token": "failed_login"},
             "skill_rewards": {"shell_fluency": 1, "forensics": 1},
             "seed_files": [
                 {
@@ -57,6 +61,7 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-002",
             "title": "System Operations Foundations",
+            "analyst_track": "systems",
             "focus": "ps, kill, systemctl, chmod, chown, cp, mv, rm",
             "objective": "Create /home/operator/training/system-summary.txt containing 'sshd' and 'running' with strict file controls.",
             "hint": "systemctl status sshd > system-summary.txt && chmod 640 system-summary.txt && chown root:operators system-summary.txt",
@@ -66,6 +71,7 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-003",
             "title": "Network Analysis Foundations",
+            "analyst_track": "soc",
             "focus": "ss, telemetry, grep, wc, du, df, free",
             "objective": "Create /home/operator/training/network-summary.txt containing 'LISTEN'.",
             "hint": "ss > network-summary.txt",
@@ -80,6 +86,7 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-004",
             "title": "Security Operations Capstone",
+            "analyst_track": "soc",
             "focus": "incidents, contain, logs, telemetry, edr, malware, authlog",
             "objective": "Contain INC-GLASS-VEIL and create /home/operator/training/security-summary.txt including 'contained'.",
             "hint": "contain INC-GLASS-VEIL && incidents show INC-GLASS-VEIL > security-summary.txt",
@@ -89,6 +96,7 @@ def _default_training_modules() -> list[dict[str, object]]:
         {
             "id": "ANA-005",
             "title": "Forensic Data Tracking",
+            "analyst_track": "soc",
             "focus": "forensics, cat, grep, find, wc, logs",
             "objective": "Record chain-of-custody entries and export /home/operator/training/forensics-ledger.txt with INC-GLASS-VEIL evidence.",
             "hint": "forensics record INC-GLASS-VEIL logs chain_of_custody && forensics export /home/operator/training/forensics-ledger.txt",
@@ -241,6 +249,9 @@ class WorldSimulation:
     def __post_init__(self) -> None:
         if not self.regions:
             self._seed()
+
+    def simulated_datetime(self) -> datetime:
+        return SIMULATION_START_TIME + timedelta(seconds=self.world_tick * WORLD_TICK_SECONDS)
 
     def _seed(self) -> None:
         self.factions = {
@@ -732,7 +743,8 @@ class WorldSimulation:
                 if state is None:
                     continue
                 if incident.status == "open":
-                    penalty = 4 if incident.severity == "high" else 2
+                    severity_penalty = SEVERITY_STABILITY_PENALTY.get(incident.severity, SEVERITY_STABILITY_PENALTY["low"])
+                    penalty = 4 if severity_penalty >= SEVERITY_STABILITY_PENALTY["high"] else 2
                     state["stability"] = max(0, int(state["stability"]) - penalty)
                     state["threat_level"] = _max_threat(_threat_level_for_stability(int(state["stability"])), "medium")
                     if incident.exfiltration:
