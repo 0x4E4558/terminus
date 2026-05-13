@@ -1,0 +1,1487 @@
+Metadata-Version: 2.4
+Name: terminus-engine
+Version: 0.1.0
+Summary: TERMINUS ENGINE: SSH-native narrative cybersecurity simulation core.
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: asyncssh==2.21.1
+Provides-Extra: dev
+
+# TERMINUS ENGINE
+
+## MASTER ENGINEERING BLUEPRINT
+
+Persistent Narrative Cybersecurity Simulation Environment  
+Full Systems Architecture, Narrative Framework, Educational Doctrine, Simulation Design, and LLM Construction Specification
+
+## DOCUMENT PURPOSE
+
+This document is not a conceptual overview.
+
+This document is intended to function as:
+
+- a complete engineering doctrine
+- a systems architecture blueprint
+- a narrative continuity framework
+- a curriculum sequencing model
+- a simulation specification
+- a world design bible
+- an AI-assisted implementation directive
+- a long-term scalability reference
+- a development governance document
+- a persistent design authority
+
+This document exists so that:
+
+- human developers
+- future contributors
+- AI systems
+- autonomous coding agents
+- orchestration pipelines
+- code generation systems
+- simulation authors
+- world designers
+- narrative writers
+- infrastructure engineers
+
+can all work from a unified vision without architectural drift.
+
+## PRIMARY DESIGN DIRECTIVE
+
+TERMINUS ENGINE is **not**:
+
+- a CTF platform
+- a Linux quiz game
+- a shell wrapper
+- an IRC bot
+- a web challenge site
+- a static cybersecurity sandbox
+- a regex challenge validator
+- a gamified flashcard system
+
+TERMINUS ENGINE **is**:
+
+A persistent SSH-native narrative cybersecurity simulation environment in which:
+
+- the terminal is the interface
+- systems are the world
+- infrastructure is narrative
+- incidents are story arcs
+- investigation is gameplay
+- operational reasoning is progression
+- Linux fluency emerges naturally
+- cybersecurity competence emerges through immersion
+- players evolve cognitively from novice users into capable operators
+
+The simulation must feel like:
+
+- a living operational environment
+- a fractured cyberpunk civilization
+- a hostile network ecosystem
+- a decaying distributed infrastructure
+- an archaeological reconstruction of technological collapse
+
+The player must never feel:
+
+> “I am solving platform challenges.”
+
+The player must instead feel:
+
+> “I am surviving and operating within a believable digital world.”
+
+## CORE PHILOSOPHY
+
+### EDUCATION THROUGH OPERATIONAL IMMERSION
+
+TERMINUS does not teach commands directly.
+
+TERMINUS teaches:
+
+- analytical reasoning
+- investigative methodology
+- operational sequencing
+- environmental awareness
+- systems thinking
+- procedural discipline
+- technical intuition
+- incident reconstruction
+- telemetry correlation
+- evidence evaluation
+- defensive reasoning
+- infrastructure literacy
+
+Commands are treated as tools.
+
+Not objectives.
+
+### THE TERMINAL IS THE WORLD
+
+There must never be a separation between:
+
+- gameplay
+- environment
+- shell interaction
+- learning
+- narrative
+
+The shell itself **is** the environment.
+
+Everything occurs through:
+
+`ssh operator@thewreck.net`
+
+The player enters the world by entering the system.
+
+### IMMERSION FIRST DESIGN
+
+Every system must preserve immersion.
+
+Avoid:
+
+- arcade UI
+- artificial challenge popups
+- immersion-breaking tutorials
+- overt gamification
+- unrealistic abstractions
+- excessive scoring systems
+- cartoon reward structures
+
+Prefer:
+
+- environmental clues
+- operational logs
+- subtle guidance
+- NPC commentary
+- realistic telemetry
+- emergent investigation
+- atmospheric storytelling
+
+## EDUCATIONAL DOCTRINE
+
+### COGNITIVE PROGRESSION MODEL
+
+The player journey mirrors actual operator evolution.
+
+### STAGE 0 — ORIENTATION
+
+Player Characteristics:
+
+- unfamiliar with shell environments
+- uncertain navigation
+- no operational confidence
+- no mental model of Linux systems
+
+Educational Goals:
+
+- terminal familiarity
+- navigation confidence
+- filesystem awareness
+- command chaining concepts
+- reading outputs
+- understanding context
+
+Narrative Role:
+
+A scavenger entering the Wreck for the first time.
+
+Psychological State:
+
+Disorientation.
+
+### STAGE 1 — FUNCTIONAL OPERATOR
+
+Player Characteristics:
+
+- can navigate environments
+- understands files/processes/services
+- beginning analytical thinking
+- starting operational intuition
+
+Educational Goals:
+
+- pipelines
+- permissions
+- services
+- process inspection
+- text analysis
+- system structure
+- logs
+
+Narrative Role:
+
+Salvage technician.
+
+Psychological State:
+
+Growing confidence.
+
+### STAGE 2 — ANALYST
+
+Player Characteristics:
+
+- correlates evidence
+- identifies anomalies
+- understands persistence
+- investigates incidents
+
+Educational Goals:
+
+- process analysis
+- socket analysis
+- service investigation
+- authentication auditing
+- timeline analysis
+- log correlation
+- malware identification
+
+Narrative Role:
+
+System investigator.
+
+Psychological State:
+
+Suspicion.
+
+### STAGE 3 — INCIDENT RESPONDER
+
+Educational Goals:
+
+- intrusion analysis
+- forensic reconstruction
+- persistence hunting
+- containment
+- eradication
+- evidence preservation
+- operational reporting
+
+Narrative Role:
+
+Crisis responder.
+
+Psychological State:
+
+Pressure.
+
+### STAGE 4 — NETWORK OPERATOR
+
+Educational Goals:
+
+- host relationships
+- infrastructure mapping
+- lateral movement
+- traffic analysis
+- segmentation
+- distributed systems
+- telemetry aggregation
+
+Narrative Role:
+
+Systems operator.
+
+Psychological State:
+
+Awareness.
+
+### STAGE 5 — ARCHITECT
+
+Educational Goals:
+
+- infrastructure hardening
+- detection engineering
+- operational planning
+- strategic defense
+- distributed coordination
+- systems design
+
+Narrative Role:
+
+Custodian of the rebuilt network.
+
+Psychological State:
+
+Responsibility.
+
+## NARRATIVE FOUNDATION
+
+### THE WORLD
+
+The world is called:
+
+**THE WRECK**
+
+The Wreck is a distributed technological graveyard spanning:
+
+- fractured relay sectors
+- abandoned datacenters
+- dead industrial zones
+- autonomous infrastructure remnants
+- fragmented archives
+- failed AI governance systems
+- corrupted memory repositories
+- weaponized network ruins
+
+Civilization collapsed after:
+
+**THE EPOCH EVENT**
+
+The exact cause is initially unclear.
+
+Conflicting theories exist:
+
+- autonomous defense AI escalation
+- infrastructure poisoning
+- mass telemetry manipulation
+- cryptographic collapse
+- synthetic cognition rebellion
+- economic systems failure
+- coordinated cyberwarfare
+- orbital relay sabotage
+
+The truth is discovered gradually through:
+
+- logs
+- archives
+- evidence
+- corrupted recordings
+- operational telemetry
+- hidden infrastructure
+- classified systems
+- surviving operators
+
+### NARRATIVE STRUCTURE
+
+The narrative must function simultaneously as:
+
+- worldbuilding
+- educational sequencing
+- operational motivation
+- cognitive reinforcement
+- emotional continuity
+
+Every:
+
+- incident
+- region
+- faction
+- NPC
+- system
+- host
+- process
+- artifact
+
+must support:
+
+- educational progression
+- environmental storytelling
+- operational realism
+
+### FACTIONS
+
+#### THE SALVAGERS
+
+Role:
+
+Infrastructure scavengers.
+
+Teach:
+
+- filesystem navigation
+- operational basics
+- shell fluency
+- permissions
+- recovery
+- scripting
+
+Philosophy:
+
+> “Knowledge survives longer than steel.”
+
+Visual Tone:
+
+Industrial decay.  
+Copper.  
+Rust.  
+Rain.  
+Improvised machinery.
+
+#### THE MECHANISTS
+
+Role:
+
+Infrastructure engineers preserving old systems.
+
+Teach:
+
+- services
+- daemons
+- processes
+- automation
+- cron
+- system administration
+- package management
+
+Philosophy:
+
+> “Machines fail when operators stop listening.”
+
+#### THE HASHRUNNERS
+
+Role:
+
+Cryptographic smugglers and network infiltrators.
+
+Teach:
+
+- hashes
+- authentication
+- cracking
+- lateral movement
+- privilege escalation
+- stealth
+
+Philosophy:
+
+> “Every lock was designed by someone fallible.”
+
+#### THE ARCHIVISTS
+
+Role:
+
+Preservers of historical infrastructure memory.
+
+Teach:
+
+- forensics
+- timeline analysis
+- evidence handling
+- reconstruction
+- packet analysis
+- telemetry interpretation
+
+Philosophy:
+
+> “Nothing disappears. Systems remember everything.”
+
+#### THE SIGNAL CHOIR
+
+Role:
+
+Operators obsessed with network resonance and traffic patterns.
+
+Teach:
+
+- networking
+- sockets
+- traffic analysis
+- DNS
+- routing
+- packet inspection
+
+Philosophy:
+
+> “All systems speak. Most operators never learn the language.”
+
+#### THE NULL SECT
+
+Role:
+
+Anomalous operators manipulating hidden infrastructure.
+
+Teach:
+
+- malware
+- persistence
+- anti-forensics
+- rootkits
+- evasion
+- deception
+
+Philosophy:
+
+> “Visibility is vulnerability.”
+
+## WORLD STRUCTURE
+
+### REGIONAL DESIGN
+
+Each region represents:
+
+- an educational layer
+- a systems domain
+- an operational mindset
+- a psychological tone
+
+### REGION 0 — THE CRASH SITE
+
+Educational Focus:
+
+- navigation
+- filesystem basics
+- shell awareness
+- hidden files
+- command chaining
+
+Atmosphere:
+
+- confusion
+- rain
+- darkness
+- wreckage
+- discovery
+
+Core Skills:
+
+- `ls`
+- `cd`
+- `pwd`
+- `cat`
+- `grep`
+- `mkdir`
+- `touch`
+- `cp`
+- `mv`
+- `rm`
+
+### REGION 1 — THE SALVAGE DISTRICT
+
+Educational Focus:
+
+- pipelines
+- permissions
+- scripting
+- environment variables
+- archives
+- automation
+
+Core Skills:
+
+- pipes
+- `chmod`
+- `tar`
+- `awk`
+- `sed`
+- `env`
+- bash basics
+
+### REGION 2 — THE MECHANIST FORGE
+
+Educational Focus:
+
+- processes
+- services
+- cron
+- systemd
+- logs
+
+Core Skills:
+
+- `ps`
+- `top`
+- `kill`
+- `systemctl`
+- `journalctl`
+- `crontab`
+
+### REGION 3 — CLUB NEON
+
+Educational Focus:
+
+- sockets
+- ports
+- scans
+- listeners
+- network topology
+
+Core Skills:
+
+- `ss`
+- `netstat`
+- `tcpdump`
+- `nmap`
+- `dig`
+- `traceroute`
+
+### REGION 4 — THE GHOST NETWORK
+
+Educational Focus:
+
+- authentication
+- escalation
+- hashes
+- persistence
+- stealth
+
+Core Skills:
+
+- `sudo`
+- `passwd`
+- `ssh`
+- `hashcat`
+- `john`
+- PAM concepts
+
+### REGION 5 — THE MEMORY PALACE
+
+Educational Focus:
+
+- forensics
+- timelines
+- packet analysis
+- evidence recovery
+- incident reconstruction
+
+Core Skills:
+
+- `tshark`
+- `strings`
+- `xxd`
+- grep correlation
+- timeline generation
+
+### REGION 6 — THE EPOCH CORE
+
+Educational Focus:
+
+- distributed systems
+- infrastructure coordination
+- SIEM concepts
+- detection engineering
+- strategic response
+
+Core Skills:
+
+- correlation
+- detection logic
+- telemetry aggregation
+- operational architecture
+
+## SYSTEMS ARCHITECTURE
+
+### HIGH LEVEL ARCHITECTURE
+
+```text
+SSH Layer
+    ↓
+Session Layer
+    ↓
+Terminal Renderer
+    ↓
+Shell Engine
+    ↓
+Parser Engine
+    ↓
+Execution Engine
+    ↓
+Virtual Kernel
+    ↓
+Subsystem Managers
+    ↓
+World State
+```
+
+### CORE PRINCIPLE
+
+NO REAL COMMAND EXECUTION.
+
+EVER.
+
+All interactions occur inside:
+
+- virtualized systems
+- simulated infrastructure
+- synthetic environments
+- isolated object models
+
+This is mandatory for:
+
+- security
+- consistency
+- persistence
+- scalability
+- narrative control
+- deterministic simulation
+
+### TRANSPORT LAYER
+
+#### SSH
+
+SSH is mandatory because:
+
+- encrypted transport
+- native terminal immersion
+- PTY support
+- ANSI compatibility
+- realistic operational behavior
+- terminal authenticity
+- session persistence
+- native Linux feel
+
+Recommended:
+
+- AsyncSSH
+
+### TERMINAL REQUIREMENTS
+
+Support:
+
+- ANSI colors
+- VT100 sequences
+- dynamic prompts
+- line editing
+- command history
+- scrollback
+- resize events
+- typing simulation
+- atmospheric rendering
+
+### SHELL ENGINE
+
+#### SHELL RESPONSIBILITIES
+
+The shell engine manages:
+
+- prompts
+- input buffering
+- command history
+- aliases
+- environment variables
+- parser invocation
+- output rendering
+- shell state
+
+### PARSER ARCHITECTURE
+
+DO NOT use regex validation.
+
+The parser must support:
+
+- tokenization
+- quoting
+- escaping
+- pipes
+- redirects
+- subshells
+- variables
+- environment expansion
+- chaining
+
+Architecture:
+
+```text
+Tokenizer
+    ↓
+Parser
+    ↓
+AST
+    ↓
+Executor
+```
+
+### ABSTRACT SYNTAX TREE
+
+```python
+class CommandNode:
+    command: str
+    args: list
+    flags: list
+    redirects: list
+    pipes: list
+    env: dict
+```
+
+### EXECUTION ENGINE
+
+The executor maps shell operations into:
+
+- VirtualKernel APIs
+- filesystem interactions
+- process operations
+- network operations
+- service operations
+- log generation
+- incident mutation
+
+### VIRTUAL KERNEL
+
+The VirtualKernel is the heart of TERMINUS.
+
+All systems interact through it.
+
+#### KERNEL RESPONSIBILITIES
+
+```text
+VirtualKernel
+ ├── Filesystem
+ ├── ProcessManager
+ ├── ServiceManager
+ ├── NetworkStack
+ ├── AuthSystem
+ ├── LoggingEngine
+ ├── PackageManager
+ ├── Scheduler
+ ├── IncidentEngine
+ ├── TelemetryEngine
+ └── PersistenceEngine
+```
+
+### VIRTUAL FILESYSTEM
+
+#### CRITICAL REQUIREMENT
+
+The VFS must feel believable.
+
+The VFS is **not**:
+
+- decorative
+- static
+- challenge scaffolding
+
+The VFS **is**:
+
+- evidence
+- environment
+- history
+- narrative
+- investigation substrate
+
+#### VFS REQUIREMENTS
+
+Support:
+
+- directories
+- files
+- symlinks
+- permissions
+- ownership
+- timestamps
+- hidden files
+- recursive traversal
+- metadata
+- sparse files
+- pseudo devices
+- generated logs
+- inode references
+
+#### VFS OBJECT MODEL
+
+```text
+VFSNode
+ ├── File
+ ├── Directory
+ ├── Symlink
+ ├── Pipe
+ └── Device
+```
+
+#### FILE CONTENT STRATEGY
+
+Files should contain:
+
+- operational clues
+- realistic configs
+- environmental lore
+- forensic artifacts
+- telemetry fragments
+- corrupted records
+- user mistakes
+- hidden persistence
+- partial truths
+- misleading evidence
+
+### PROCESS MANAGER
+
+Supports:
+
+- `ps`
+- `top`
+- `jobs`
+- `kill`
+- background tasks
+- persistence
+- malware
+- cron spawning
+- daemon failures
+
+Processes must:
+
+- consume resources
+- appear/disappear dynamically
+- interact with incidents
+- generate logs
+- communicate through sockets
+
+### NETWORK STACK
+
+Supports:
+
+- sockets
+- listening ports
+- services
+- scans
+- DNS
+- packet simulation
+- routing
+- segmentation
+- network incidents
+
+The network layer must support:
+
+- believable scans
+- service enumeration
+- rogue listeners
+- covert channels
+- DNS anomalies
+- exfiltration patterns
+
+### LOGGING ENGINE
+
+Logs are one of the primary educational systems.
+
+Logs must:
+
+- evolve dynamically
+- contain realistic noise
+- preserve timelines
+- support reconstruction
+- include false positives
+- reveal behavior gradually
+
+### AUTHENTICATION SYSTEM
+
+Supports:
+
+- users
+- groups
+- permissions
+- `sudo`
+- PAM concepts
+- SSH keys
+- failed logins
+- brute force attempts
+- privilege escalation
+
+### INCIDENT ENGINE
+
+#### CRITICAL DESIGN SHIFT
+
+TERMINUS does not revolve around isolated challenges.
+
+TERMINUS revolves around incidents.
+
+An incident is:
+
+- a dynamic operational problem
+- a narrative event
+- a systems mutation
+- a distributed puzzle
+- an educational scenario
+
+#### INCIDENT EXAMPLE
+
+INCIDENT: GLASS VEIL
+
+Symptoms:
+
+- outbound DNS spikes
+- elevated CPU usage
+- hidden persistence daemon
+- modified nginx configs
+- failed backups
+- suspicious cron entries
+
+Player Responsibilities:
+
+- investigate
+- identify foothold
+- trace persistence
+- correlate logs
+- isolate malware
+- recover evidence
+- contain breach
+- restore services
+- generate report
+
+There is no single command solution.
+
+The player must think operationally.
+
+## EDUCATIONAL STRUCTURE
+
+### EDUCATION THROUGH INCIDENT DESIGN
+
+Every incident teaches:
+
+- technical mechanics
+- analytical methodology
+- operational discipline
+- investigative sequencing
+- systems awareness
+
+### INCIDENT TYPES
+
+#### Infrastructure Failure
+
+Teaches:
+
+- services
+- dependencies
+- logs
+- recovery
+
+#### Malware Infection
+
+Teaches:
+
+- persistence
+- process analysis
+- sockets
+- eradication
+
+#### Credential Compromise
+
+Teaches:
+
+- auth logs
+- brute force detection
+- privilege escalation
+- access control
+
+#### Exfiltration Event
+
+Teaches:
+
+- traffic analysis
+- packet inspection
+- DNS anomalies
+- timelines
+
+#### Insider Activity
+
+Teaches:
+
+- behavioral analysis
+- evidence correlation
+- operational ambiguity
+
+### PLAYER PROGRESSION
+
+#### SKILL MODEL
+
+Skills are not cosmetic.
+
+Skills modify:
+
+- perception
+- analysis capability
+- environmental visibility
+- tooling efficiency
+- operational intuition
+
+Example:
+
+Higher forensics skill may:
+
+- reveal hidden timestamps
+- expose deleted entries
+- identify tampered logs
+- reduce false positives
+
+Higher networking skill may:
+
+- reveal suspicious TTL anomalies
+- identify malformed packets
+- improve scan interpretation
+
+### MULTIUSER STRUCTURE
+
+TERMINUS eventually evolves into:
+
+- cooperative investigations
+- analyst teams
+- shared incidents
+- faction conflicts
+- distributed operations
+- infrastructure restoration
+- live events
+
+Players should eventually:
+
+- share evidence
+- coordinate responses
+- divide investigative labor
+- restore infrastructure together
+
+## IMMERSION RULES
+
+Never display:
+
+- “Correct!”
+
+Never display:
+
+- “Challenge Complete”
+
+Avoid overt game terminology.
+
+Prefer:
+
+- ANOMALY CONFIRMED
+- LOG CORRELATION ACCEPTED
+- CONTAINMENT SUCCESSFUL
+- RUST: “You’re beginning to think like an operator.”
+
+## CONTENT AUTHORING DOCTRINE
+
+All future content creators must follow these rules.
+
+### RULE 1 — SYSTEMS FIRST
+
+Narrative exists inside systems.
+
+Not beside them.
+
+### RULE 2 — INVESTIGATION OVER ANSWERS
+
+Never reduce incidents to:
+
+> “run command X”
+
+Encourage:
+
+- exploration
+- correlation
+- reasoning
+- experimentation
+
+### RULE 3 — AMBIGUITY IS ESSENTIAL
+
+Real systems are noisy.
+
+Include:
+
+- irrelevant logs
+- misleading indicators
+- conflicting evidence
+- dead ends
+- uncertainty
+
+### RULE 4 — ENVIRONMENTAL STORYTELLING
+
+Teach through:
+
+- configs
+- logs
+- comments
+- abandoned scripts
+- broken services
+- telemetry
+- fragmented records
+
+### RULE 5 — PRESERVE BELIEVABILITY
+
+Even fictional systems must feel operationally coherent.
+
+## ENGINEERING ROADMAP
+
+### PHASE 1 — TERMINAL FOUNDATION
+
+Deliverables:
+
+- SSH server
+- session manager
+- terminal renderer
+- shell engine
+- parser
+- AST
+- VFS
+- foundational commands
+- persistence layer
+
+Milestone:
+
+Player can inhabit a believable shell environment.
+
+### PHASE 2 — WORLD FOUNDATION
+
+Deliverables:
+
+- regions
+- hosts
+- NPCs
+- factions
+- environmental storytelling
+- host transitions
+- world persistence
+
+Milestone:
+
+Player inhabits a believable persistent world.
+
+### PHASE 3 — OPERATIONAL SYSTEMS
+
+Deliverables:
+
+- process manager
+- service manager
+- network stack
+- auth systems
+- logging engine
+- telemetry
+- incidents
+
+Milestone:
+
+Player investigates believable operational problems.
+
+### PHASE 4 — ADVERSARIAL SYSTEMS
+
+Deliverables:
+
+- malware simulation
+- persistence chains
+- anti-forensics
+- rootkits
+- exfiltration systems
+- advanced incidents
+
+Milestone:
+
+Player performs true incident response.
+
+### PHASE 5 — MULTIUSER WORLD
+
+Deliverables:
+
+- cooperative sectors
+- shared incidents
+- live world events
+- infrastructure restoration
+- analyst teams
+- faction operations
+
+Milestone:
+
+Persistent living cyber world.
+
+### PHASE 6 — ADVANCED SOC SIMULATION
+
+Deliverables:
+
+- SIEM simulation
+- EDR systems
+- telemetry aggregation
+- detection engineering
+- distributed infrastructure monitoring
+
+Milestone:
+
+Players operate large-scale defensive infrastructure.
+
+## LLM IMPLEMENTATION DIRECTIVE
+
+### MASTER CONSTRUCTION PROMPT
+
+The following directive is intended for use with advanced LLM systems.
+
+This prompt exists to preserve architectural consistency across AI-assisted development.
+
+You are engineering TERMINUS ENGINE.
+
+TERMINUS ENGINE is a persistent SSH-native narrative cybersecurity simulation environment.
+
+This is **not**:
+
+- a challenge bot
+- a shell wrapper
+- a regex validator
+- a web game
+- a simplistic MUD
+
+This is:
+
+- a simulated operating environment
+- a persistent cyberpunk infrastructure world
+- an educational cybersecurity simulation ecosystem
+- a narrative SOC/MMO hybrid
+- a shell-native operational experience
+
+PRIMARY DIRECTIVES:
+
+- Preserve immersion.
+- The shell is the world.
+- Never break operational believability.
+- Never reduce learning to command memorization.
+- Teach cognition through investigation.
+- Systems themselves are narrative.
+- Incidents replace static challenges.
+- Never execute real user shell commands.
+- All commands operate against virtualized simulation layers.
+- All infrastructure must feel believable.
+
+TECHNICAL REQUIREMENTS:
+
+- Python 3.12+
+- AsyncSSH
+- AsyncIO architecture
+- Virtual filesystem
+- AST-based shell parser
+- Virtual kernel
+- Process manager
+- Network stack
+- Logging engine
+- Incident engine
+- Persistence layer
+- Multi-host support
+- ANSI terminal rendering
+
+ARCHITECTURAL REQUIREMENTS:
+
+Build using:
+
+```text
+SSH Layer
+    ↓
+Session Layer
+    ↓
+Terminal Renderer
+    ↓
+Shell Engine
+    ↓
+Parser
+    ↓
+Execution Engine
+    ↓
+Virtual Kernel
+    ↓
+Subsystem Managers
+    ↓
+Persistent World State
+```
+
+EDUCATIONAL REQUIREMENTS:
+
+Teach:
+
+- Linux
+- system administration
+- process analysis
+- networking
+- authentication
+- incident response
+- forensics
+- infrastructure reasoning
+- operational discipline
+
+Do not teach through:
+
+- trivia
+- quizzes
+- command repetition
+- static challenge validation
+
+Teach through:
+
+- investigation
+- incidents
+- telemetry
+- exploration
+- environmental storytelling
+- operational pressure
+
+NARRATIVE REQUIREMENTS:
+
+The world is THE WRECK.
+
+The Wreck is a fractured post-collapse infrastructure civilization recovering from THE EPOCH EVENT.
+
+All narrative elements must reinforce:
+
+- systems decay
+- technological archaeology
+- operational survival
+- infrastructure restoration
+- distributed network collapse
+- hidden truths within logs and telemetry
+
+FACTIONS:
+
+- Salvagers
+- Mechanists
+- Hashrunners
+- Archivists
+- Signal Choir
+- Null Sect
+
+All factions teach operational concepts through worldview and infrastructure interaction.
+
+CONTENT DESIGN RULES:
+
+- ambiguity is mandatory
+- false positives must exist
+- systems must contain noise
+- logs must feel realistic
+- incidents must support multiple investigative paths
+- narrative must emerge environmentally
+- avoid overt exposition
+- avoid immersion-breaking UI
+
+IMMERSION RULES:
+
+Never display:
+
+- Correct!
+- Challenge Complete
+- XP spam
+- arcade systems
+
+Prefer:
+
+- ANOMALY CONFIRMED
+- SERVICE STABILIZED
+- BREACH CONTAINED
+- operator dialogue
+- environmental reactions
+
+FINAL GOAL:
+
+Players should gradually transform from:
+
+- novice shell users
+
+into:
+
+capable operators capable of:
+
+- investigating incidents
+- analyzing systems
+- understanding infrastructure
+- correlating evidence
+- reasoning operationally
+- thinking like analysts
+
+The terminal itself must become:
+
+- the interface
+- the narrative medium
+- the educational environment
+- the operational space
+- the world
+
+## FINAL DESIGN OBJECTIVE
+
+TERMINUS ENGINE must ultimately feel like:
+
+- a believable cyberpunk infrastructure civilization
+- a persistent operational ecosystem
+- a technical archaeological world
+- a living shell-native environment
+- a distributed systems narrative
+- a cybersecurity learning civilization
+
+where:
+
+- systems tell stories
+- logs preserve history
+- incidents become narrative
+- infrastructure becomes gameplay
+- players become operators through immersion
