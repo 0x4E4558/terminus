@@ -61,10 +61,12 @@ class VirtualKernel:
         long = "-l" in flags
         nodes = self.vfs.list_dir(path, include_hidden=include_hidden)
         if long:
-            lines = [
-                f"{n.node_type[0]}{self._mode_to_rwx(n.mode)} {n.owner} {n.group} {self._node_size(n)} {n.modified_at} {n.name}"
-                for n in nodes
-            ]
+            lines = []
+            for n in nodes:
+                permissions = f"{n.node_type[0]}{self._mode_to_rwx(n.mode)}"
+                identity = f"{n.owner} {n.group}"
+                size = str(self._node_size(n))
+                lines.append(f"{permissions} {identity} {size} {n.modified_at} {n.name}")
             return ExecResult(stdout=("\n".join(lines) + "\n") if lines else "")
         return ExecResult(stdout=("  ".join(n.name for n in nodes) + "\n") if nodes else "")
 

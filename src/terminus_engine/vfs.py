@@ -12,6 +12,12 @@ def _now() -> str:
 
 @dataclass(slots=True)
 class VFSNode:
+    """Virtual filesystem node.
+
+    `mode` stores Unix-like octal permissions as a 3-character string
+    (for example "755" for rwxr-xr-x or "644" for rw-r--r--).
+    """
+
     name: str
     node_type: str
     owner: str = "operator"
